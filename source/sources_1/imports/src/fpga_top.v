@@ -32,7 +32,9 @@ module fpga_top (
     wire [7:0] rx_byte;
 
     assign tx_o = tx_o_tmp;
-    assign reset = loader_reset & rst_ni;
+    // loader_reset is intentionally removed, since the loader FSM resets the core
+    // whenever the UART sees 0x2D, 0x5F*, 0x70
+    assign reset = rst_ni;
 
     // Clocking
     wire clk_i, locked;
