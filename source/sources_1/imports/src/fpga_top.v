@@ -6,17 +6,17 @@ module fpga_top (
     input  wire rx_i,
     output wire tx_o,
     output wire uart_debug_stb,
-    output wire led0,
-    output wire led1,
-    output wire led3,
+    // output wire led0,
+    // output wire led1,
+    // output wire led3,
     output wire gpio_trigger_o
 );
 
     // -------------------------------------------------------------------------
     // Parameters
     // -------------------------------------------------------------------------
-    parameter SYS_CLK_FREQ = 26250000;
-    parameter NUM_SLAVES   = 6;
+    parameter SYS_CLK_FREQ = 25000000;
+    parameter NUM_SLAVES   = 5;
     parameter MEMORY_INIT  = "memory_init.mem";
     parameter RAM_DEPTH    = 120000;
 
@@ -33,7 +33,7 @@ module fpga_top (
 
     assign tx_o = tx_o_tmp;
     // loader_reset is intentionally removed, since the loader FSM resets the core
-    // whenever the UART sees 0x2D, 0x5F*, 0x70
+    // whenever the UART sees 0x2D, 0x5F*, 0x70    
     assign reset = rst_ni;
 
     // Clocking
@@ -108,13 +108,15 @@ module fpga_top (
     assign slave_adr_begin[3] = 32'h1000_8010;
     assign slave_adr_end[3]   = 32'h1000_8013;
 
+/*
     // Slave 4: Loader
     assign slave_adr_begin[4] = 32'h1000_8014;
     assign slave_adr_end[4]   = 32'h1000_8014;
+*/
 
     // Slave 5: GPIO
-    assign slave_adr_begin[5] = 32'h1000_8020;
-    assign slave_adr_end[5]   = 32'h1000_8023;
+    assign slave_adr_begin[4] = 32'h1000_8020;
+    assign slave_adr_end[4]   = 32'h1000_8023;
 
     // -------------------------------------------------------------------------
     // Crossbar / Interconnect Logic
@@ -316,6 +318,7 @@ module fpga_top (
         .rx_irq_o(rx_irq_o)
     );
 
+/*
     loader_wb #(
         .SYS_CLK_FREQ(SYS_CLK_FREQ)
     ) loader0_inst (
@@ -335,24 +338,25 @@ module fpga_top (
         .uart_rx_irq(rx_irq_o),
         .uart_rx_byte(rx_byte),
         .reset_o(loader_reset),
-        .led0(led0), 
-        .led1(led1), 
-        .led3(led3)
+        .led0(), 
+        .led1(), 
+        .led3()
     );
+*/
 
     gpio_wb gpio_inst (
-        .wb_cyc_i(wb_cyc_i[5]),
-        .wb_stb_i(wb_stb_i[5]),
-        .wb_we_i(wb_we_i[5]),
-        .wb_adr_i(wb_adr_i[5]),
-        .wb_dat_i(wb_dat_i[5]),
-        .wb_sel_i(wb_sel_i[5]),
-        .wb_stall_o(wb_stall_o[5]),
-        .wb_ack_o(wb_ack_o[5]),
-        .wb_dat_o(wb_dat_o[5]),
-        .wb_err_o(wb_err_o[5]),
-        .wb_rst_i(wb_rst_i[5]),
-        .wb_clk_i(wb_clk_i[5]),
+        .wb_cyc_i(wb_cyc_i[4]),
+        .wb_stb_i(wb_stb_i[4]),
+        .wb_we_i(wb_we_i[4]),
+        .wb_adr_i(wb_adr_i[4]),
+        .wb_dat_i(wb_dat_i[4]),
+        .wb_sel_i(wb_sel_i[4]),
+        .wb_stall_o(wb_stall_o[4]),
+        .wb_ack_o(wb_ack_o[4]),
+        .wb_dat_o(wb_dat_o[4]),
+        .wb_err_o(wb_err_o[4]),
+        .wb_rst_i(wb_rst_i[4]),
+        .wb_clk_i(wb_clk_i[4]),
         .trigger_o(gpio_trigger_o)
     );
 
