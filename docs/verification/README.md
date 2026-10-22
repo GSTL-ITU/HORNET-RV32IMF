@@ -20,7 +20,7 @@ and FPGA checks are separate targets.
 | `make regress` | lint, fpu-test, cosim, cosim-stall, random, formal | |
 
 Logs and summaries are written to `build/` (`build/tests/summary.txt`,
-`build/formal/summary.txt`, `build/sw-tests/summary.txt`, per-test logs next
+`build/formal/cores/hornet/summary.txt`, `build/sw-tests/summary.txt`, per-test logs next
 to each program).
 
 ## Co-simulation against Spike
@@ -63,8 +63,8 @@ skips trapping instructions and reads `mcause`.
 
 | Run | Programs | Instructions | Traps | Result |
 |---|---|---|---|---|
-| `make random` (seed 1) | 60 | 40 814 | 903 | pass |
-| `make random` with 30 % wait states | 60 | | | pass |
+| `make random RANDOM=200` (seed 1) | 200 | 136 186 | 3 074 | pass |
+| the same with 30 % wait states | 200 | 136 186 | 3 074 | pass |
 
 ## FPU
 
@@ -115,7 +115,7 @@ outstanding request per port).
 | CSR semantics `csrw_*` (every CSR of `csr_spec 1.12` plus `mcountinhibit`) | 76 | pass |
 | illegal CSRs `csr_ill_*` (S/U/H-mode CSRs, debug, PMP, `hpmcounter3`, ...) | 14 | pass |
 | `csrc_const` (ID CSRs), `csrc_zero` (reserved bits of `mstatus`, `misa`, `mstatush`), `csrc_any` (`mscratch`) | 9 | pass |
-| **total** | **151** | |
+| **total** | **151** | **151/151** (2026-10-22, 4 parallel jobs, about 70 minutes; `pc_fwd` alone about 35) |
 | `cover` | 1 | pass |
 
 The counter checks `csrc_inc`/`csrc_upcnt` are filtered (see the comment in

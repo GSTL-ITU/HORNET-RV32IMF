@@ -88,8 +88,8 @@ Vivado 2025.2, `xc7a100tcsg324-1`, default strategies:
 | Build | Clock | Worst setup slack | LUTs | FFs | DSP | BRAM36 |
 |---|---|---|---|---|---|---|
 | board top, 64 KB + 64 KB (`sw/examples/gpio`) | 50 MHz | +0.85 ns | 6.6 k | 2.8 k | 6 | 32 |
-| block-design demo (HORNET + AXI GPIO) | 50 MHz | +0.94 ns | | | | |
-| board top, 320 KB + 64 KB + bootloader (MLP example) | 41.7 MHz | see below | 7.2 k | | 6 | 112 |
+| block-design demo (HORNET + AXI GPIO) | 50 MHz | +0.94 ns | | | 6 | 32 |
+| board top, 320 KB + 64 KB + bootloader (MLP example) | 41.7 MHz | +0.75 ns | 7.6 k | 3.3 k | 6 | 112 |
 
 At 50 MHz the MLP build misses timing by 0.53 ns: 112 of the 135 block RAMs
 spread over the device and the IMEM output multiplexers add delay, so that

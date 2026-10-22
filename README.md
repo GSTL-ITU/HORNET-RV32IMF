@@ -142,7 +142,7 @@ Every change is checked by `make regress`:
 | riscv-tests rv32ui, rv32um, rv32uf, rv32mi against Spike, with and without random memory wait states | 75/75 (2 skipped: no PMP, misaligned data) |
 | Random RV32IMF programs against Spike (hazards, FPU, CSRs, traps), plain and with wait states | all pass |
 | FPU alone against 4.27 M TestFloat vectors, all rounding modes | all pass (version 1: 3.56 M failures) |
-| riscv-formal (RV32IM, CSRs, consistency checks) | see [docs/verification](docs/verification/README.md) |
+| riscv-formal (RV32IM, CSRs, consistency checks) | 151/151 |
 | C programs on the SoC (interrupts, AXI faults, FPU flags, fence.i, bootloader, MLP) | all pass |
 | Vivado: timing at 50 MHz (board top and block design) | met |
 

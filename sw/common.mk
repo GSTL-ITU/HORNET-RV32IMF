@@ -69,7 +69,7 @@ ELF = $(OUT)/$(PROG).elf
 
 all: $(OUT)/$(PROG).imem.hex
 
-$(ELF): $(SRCS) $(wildcard $(HORNET_SW)/drivers/*) $(wildcard $(HORNET_SW)/common/*)
+$(ELF): $(SRCS) $(wildcard $(HORNET_SW)/drivers/*) $(wildcard $(HORNET_SW)/common/*) $(HORNET_SW)/common.mk Makefile
 	@mkdir -p $(OUT)
 	$(RUN) $(RISCV_PREFIX)gcc $(CFLAGS) $(SRCS) $(DRIVERS) $(LDFLAGS) $(LIBS) -o $@
 

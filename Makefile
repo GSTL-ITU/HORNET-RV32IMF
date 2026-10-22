@@ -192,7 +192,7 @@ fpga-build:
 	fi && \
 	cd $(FPGA_OUT) && $(VIVADO) -mode batch -nojournal -log vivado.log \
 	    -source $(CURDIR)/fpga/nexys4ddr/build.tcl -tclargs . $(CURDIR)/$(FPGA_OUT)/imem.hex \
-	    $(CURDIR)/$(FPGA_OUT)/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(if $(CLK_DIV),$(CLK_DIV),$$PROG_CLK_DIV) $$BOOT_ADDR > /dev/null; \
+	    $(CURDIR)/$(FPGA_OUT)/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(if $(CLK_DIV),$(CLK_DIV),$${PROG_CLK_DIV:-20}) $$BOOT_ADDR > /dev/null; \
 	    grep "^RESULT" vivado.log
 
 # images the Vivado scripts use without arguments (GUI): bootloader + LED blink (board), + AXI GPIO counter (block design)
@@ -219,7 +219,7 @@ fpga-project:
 	@mkdir -p $(BUILD)/fpga
 	. $(FPGA_PROG)/build/mem.cfg && cd $(BUILD)/fpga && $(VIVADO) -mode batch -nojournal -log project.log \
 	    -source $(CURDIR)/fpga/nexys4ddr/create_project.tcl -tclargs project $(CURDIR)/$(FPGA_PROG)/build/imem.hex \
-	    $(CURDIR)/$(FPGA_PROG)/build/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(if $(CLK_DIV),$(CLK_DIV),$$PROG_CLK_DIV)
+	    $(CURDIR)/$(FPGA_PROG)/build/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(if $(CLK_DIV),$(CLK_DIV),$${PROG_CLK_DIV:-20})
 
 fpga-ip:
 	@mkdir -p $(BUILD)/ip
