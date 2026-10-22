@@ -1,5 +1,5 @@
 #include "math.h"
-#define DEBUG_IF_ADDR 0x10008010
+#include <stdio.h>
 
 int main() {
         //filter coefficients
@@ -22,7 +22,7 @@ int main() {
     volatile float x = 0.0f;
     volatile float y = 0.0f;
 
-    char *addr_ptr = (char*)DEBUG_IF_ADDR;
+    char c;
 
     for (int i = 0; i < 23; i++) {
         x = inputSignal[i];
@@ -31,80 +31,82 @@ int main() {
         y = x * a2 * y;
 
         if(fabs(y - (-0.269144f)) < 1e-4f){
-            *addr_ptr = 'a';
+            c = 'a';
         }
         else if (fabs(y - (1.816798f)) < 1e-4f){
-            *addr_ptr = 'b';
+            c = 'b';
         }
         else if (fabs(y - (-1.676859f)) < 1e-4f){
-            *addr_ptr = 'c';
+            c = 'c';
         }
         else if (fabs(y - (-0.244468f)) < 1e-4f){
-            *addr_ptr = 'd';
+            c = 'd';
         }
         else if (fabs(y - (0.099811f)) < 1e-4f){
-            *addr_ptr = 'e';
+            c = 'e';
         }
         else if (fabs(y - 1.837185f) < 1e-4f){
-            *addr_ptr = 'f';
+            c = 'f';
         }
         else if (fabs(y - (2.285808f)) < 1e-4f){
-            *addr_ptr = 'g';
+            c = 'g';
         }
         else if (fabs(y - (-0.403964f)) < 1e-4f){
-            *addr_ptr = 'h';
+            c = 'h';
         }
         else if (fabs(y - (5.069222f)) < 1e-4f){
-            *addr_ptr = 'i';
+            c = 'i';
         }
         else if (fabs(y - (3.140684f)) < 1e-4f){
-            *addr_ptr = 'j';
+            c = 'j';
         }
         else if (fabs(y - (-0.000000f)) < 1e-4f){
-            *addr_ptr = 'k';
+            c = 'k';
         }
         else if (fabs(y - (-0.397898f)) < 1e-4f){
-            *addr_ptr = 'l';
+            c = 'l';
         }
         else if (fabs(y - (1.5000441074f)) < 1e-4f){
-            *addr_ptr = 'm';
+            c = 'm';
         }
         else if (fabs(y - (0.428606f)) < 1e-4f){
-            *addr_ptr = 'n';
+            c = 'n';
         }
         else if (fabs(y - (2.139581f)) < 1e-4f){
-            *addr_ptr = 'o';
+            c = 'o';
         }
         else if (fabs(y - (0.000000f)) < 1e-4f){
-            *addr_ptr = 'p';
+            c = 'p';
         }
         else if (fabs(y - (-1.348073f)) < 1e-4f){
-            *addr_ptr = 'q';
+            c = 'q';
         }
         else if (fabs(y - (2.390810f)) < 1e-4f){
-            *addr_ptr = 'r';
+            c = 'r';
         }
         else if (fabs(y - (-0.649900f)) < 1e-4f){
-            *addr_ptr = 's';
+            c = 's';
         }
         else if (fabs(y - (-2.390810f)) < 1e-4f){
-            *addr_ptr = 't';
+            c = 't';
         }
         else if (fabs(y - (0.649900f)) < 1e-4f){
-            *addr_ptr = 'u';
+            c = 'u';
         }
         else if (fabs(y - (2.390810f)) < 1e-4f){
-            *addr_ptr = 'v';
+            c = 'v';
         }
         else{
-            *addr_ptr = 'X';
+            c = 'X';
         }
+        putchar(c);
 
         x2 = x1;
         x1 = x;
         y2 = y_1;
         y_1 = y;
     }
+    putchar('\n');
 
     return 0;
 }

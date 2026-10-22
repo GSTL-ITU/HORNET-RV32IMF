@@ -6,6 +6,20 @@ void msi_handler() {}
 void exc_handler() {}
 void fast_irq0_handler() {}
 void fast_irq1_handler() {}
+void fast_irq2_handler() {}
+void fast_irq3_handler() {}
+void fast_irq4_handler() {}
+void fast_irq5_handler() {}
+void fast_irq6_handler() {}
+void fast_irq7_handler() {}
+void fast_irq8_handler() {}
+void fast_irq9_handler() {}
+void fast_irq10_handler() {}
+void fast_irq11_handler() {}
+void fast_irq12_handler() {}
+void fast_irq13_handler() {}
+void fast_irq14_handler() {}
+void fast_irq15_handler() {}
 void direct_trap_handler() {}
 
 void SET_MTVEC_VECTOR_MODE()
@@ -23,6 +37,8 @@ void SET_MTVEC_DIRECT_MODE()
     __asm__ volatile ("csrw mtvec,%[base_addr]" :: [base_addr] "r" (base_addr));
 }
 
+//vector table: exceptions go to entry 0, interrupt n to entry n
+__asm__(".section .text.vectors, \"ax\"\n.align 2\n");
 __asm__("exc: j exc_handler\n");
 __asm__("ssi: nop\n");
 __asm__("hsi: nop\n");
@@ -41,3 +57,8 @@ __asm__("nop\n");
 __asm__("nop\n");
 __asm__("fast_irq0: j fast_irq0_handler\n");
 __asm__("fast_irq1: j fast_irq1_handler\n");
+__asm__("j fast_irq2_handler\nj fast_irq3_handler\nj fast_irq4_handler\nj fast_irq5_handler\n");
+__asm__("j fast_irq6_handler\nj fast_irq7_handler\nj fast_irq8_handler\nj fast_irq9_handler\n");
+__asm__("j fast_irq10_handler\nj fast_irq11_handler\nj fast_irq12_handler\nj fast_irq13_handler\n");
+__asm__("j fast_irq14_handler\nj fast_irq15_handler\n");
+__asm__(".text\n");

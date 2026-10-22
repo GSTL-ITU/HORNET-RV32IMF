@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // --- UART Configuration ---
-#define UART_ADDR 0x10008010
+#define UART_ADDR UART0_BASE
 #define INPUT_FLOATS 3  // We will receive A, B, and C
 #define OUTPUT_FLOATS 5 // We will send Add, Sub, Mul, Div, Sqrt
 #define BYTES_TO_RX (INPUT_FLOATS * 4)
@@ -17,7 +17,6 @@ typedef union {
 } float_bytes_t;
 
 volatile float_bytes_t rx_var;
-uart uart0;
 
 // =============================================================================
 // INTERRUPT SERVICE ROUTINE 
@@ -29,9 +28,8 @@ void msi_handler() {}
 void fast_irq1_handler() {}
 
 void fast_irq0_handler() {
-    // Read Byte directly from UART RX register
-    char *rx_ptr = (char*)(uart0.base_addr) + UART_RX_ADDR_OFFSET;
-    char rx_byte = *rx_ptr;
+    // Read Byte from the UART RX FIFO
+    char rx_byte = uart_receive_byte(&uart0);
     
     // Assemble the float byte by byte
     rx_var.bytes[rx_count % 4] = rx_byte;
@@ -56,6 +54,7 @@ int main() {
     // Setup Interrupt Vector and UART
     SET_MTVEC_VECTOR_MODE();
     uart_init(&uart0, (uint32_t *) UART_ADDR);
+    uart_set_irq(&uart0, UART_RX_IRQ);
 
     while(1) {
         // 1. Reset state and wait for data from Python

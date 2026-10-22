@@ -1,13 +1,17 @@
-CC32=riscv32-unknown-elf
-CCFLAGS=-march=rv32imf -mabi=ilp32f -ffp-contract=off -mstrict-align -malign-data=xlen -O3 -fno-math-errno -T ../linksc.ld -lm -nostartfiles -ffunction-sections -fdata-sections -Wl,--gc-sections -o inference_light_noBatch_FPGA.elf
+PROG = inference_light_noBatch_FPGA
+SRCS = inference_light_noBatch_FPGA.c
+# the weights need about 300 KB: 320 KB IMEM (80 of the 135 BRAM36 of the Artix-7 100T)
+IMEM_SIZE = 0x50000
+include ../../common.mk
 
 
-
-build:
-	$(CC32)-gcc inference_light_noBatch_FPGA.c ../../drivers/uart.c ../../drivers/irq.c ../../rom_gen/crt0.s $(CCFLAGS)
-	$(CC32)-objcopy -O binary -j .init -j .text -j .rodata -j .sdata inference_light_noBatch_FPGA.elf inference_light_noBatch_FPGA.bin
-	../../rom_gen/rom_generator inference_light_noBatch_FPGA.bin
-	cp inference_light_noBatch_FPGA.data memory_init.mem
-
-comp:
-	gcc inference_light_noBatch_FPGA.c -lm -o inference_light_noBatch_FPGA
+# Runs the first SAMPLES test vectors through the SoC testbench and compares
+# the answers with the FPGA results in test/label_results.txt
+SAMPLES ?= 6
+check: all
+	$(RUN) python3 test/make_uart_in.py test/inputs.txt $(SAMPLES) $(OUT)/uart_in.bin
+	$(MAKE) -s -C $(HORNET_ROOT) soc-sim HEX=$(patsubst $(HORNET_ROOT)/%,%,$(abspath $(OUT)/$(PROG))) \
+	    IMEM_SIZE=$(IMEM_SIZE) DMEM_SIZE=$(DMEM_SIZE) \
+	    SOC_ARGS="+uart_in=$(patsubst $(HORNET_ROOT)/%,%,$(abspath $(OUT)/uart_in.bin)) +uart_in_block=488 +uart_in_wait=1 +uart_hex +timeout=$$(( $(SAMPLES) * 1600000 + 2000000 ))" \
+	    > $(OUT)/check.log || true
+	$(RUN) python3 test/check_sim.py $(OUT)/check.log test/label_results.txt

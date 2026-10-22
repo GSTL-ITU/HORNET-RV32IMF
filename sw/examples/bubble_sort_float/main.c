@@ -1,8 +1,5 @@
 #include <stdint.h>
-
-// Debug Interface mapped from your barebones_wb_top address logic
-#define DEBUG_IF_ADDR 0x10008010
-#define DEBUG_REG     ((volatile uint32_t *)DEBUG_IF_ADDR)
+#include "hornet.h"
 
 // Standard Bubble Sort for floats
 void bubble_sort(volatile float* arr, int len) {
@@ -41,11 +38,11 @@ int main() {
 
     // Final result check
     if (check_arrays_equal(unsorted_arr, sorted_arr, len)) {
-        // SUCCESS: Write 1 to Debug Interface
-        *DEBUG_REG = 1;
+        // SUCCESS: exit code 0 ends the simulation with PASS
+        hornet_exit(0);
     } else {
-        // FAILURE: Write 13 to Debug Interface
-        *DEBUG_REG = 13;
+        // FAILURE: exit code 13
+        hornet_exit(13);
     }
 
     // Infinite loop to keep the simulation stable after the test -> Not necessary 

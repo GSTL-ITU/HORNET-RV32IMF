@@ -1,8 +1,10 @@
 // SoC testbench: runs a program from its IMEM/DMEM images
 //
-// plusargs: +imem=<hex> +dmem=<hex> +uart_in=<file> +uart_log=<file> +waves=<file.fst>
-//           +timeout=<cycles> +axi_stall=<pct>
-// The UART output is decoded and printed. GPIO outputs loop back to the inputs,
+// plusargs: +imem=<hex> +dmem=<hex> +uart_in=<file> +uart_in_block=<n> +uart_in_wait=<n> +uart_log=<file> +waves=<file.fst>
+//           +timeout=<cycles> +axi_stall=<pct> +uart_hex (print every received byte)
+// The UART output is decoded and printed. With +uart_in_block=<n> the input
+// waits for one received byte after every n bytes (request/answer protocols),
+// with +uart_in_wait=<n> it starts after n received bytes. GPIO outputs loop back to the inputs,
 // gpio_o[29:16] drive the fast interrupt pins and gpio_o[31] the external interrupt.
 // An AXI4-Lite RAM (4 KB) sits at the external port base 0x4000_0000; other
 // external addresses answer SLVERR. The program ends by writing the system
@@ -107,6 +109,8 @@ end
 
 //UART output: sample in the middle of each bit with the divisor the program set
 string line = "";
+bit uart_hex = 1'b0;
+int uart_rx_count = 0;
 initial
 begin
     forever
@@ -122,6 +126,9 @@ begin
             c[i] = uart_tx;
         end
         repeat(div) @(posedge clk);
+        uart_rx_count++;
+        if(uart_hex)
+            $display("UART byte %02x", c);
         if(c == 8'h0a)
         begin
             $display("UART: %s", line);
@@ -152,13 +159,28 @@ endtask
 initial
 begin
     string f;
-    int fd, c;
+    int fd, c, block, sent, seen, first;
+    if(!$value$plusargs("uart_in_block=%d", block))
+        block = 0;
+    if(!$value$plusargs("uart_in_wait=%d", first))
+        first = 0;
     if($value$plusargs("uart_in=%s", f))
     begin
         fd = $fopen(f, "rb");
         repeat(2000) @(posedge clk);
+        wait(uart_rx_count >= first);
+        sent = 0;
         while((c = $fgetc(fd)) != -1)
+        begin
+            if(block > 0 && sent > 0 && sent % block == 0)
+            begin
+                //wait for the program's answer to the previous block
+                seen = uart_rx_count;
+                wait(uart_rx_count > seen);
+            end
             send_byte(c[7:0]);
+            sent++;
+        end
     end
 end
 
@@ -192,6 +214,7 @@ begin
     string s;
     void'($value$plusargs("timeout=%d", timeout));
     void'($value$plusargs("axi_stall=%d", axi_stall));
+    uart_hex = $test$plusargs("uart_hex");
     for(int i = 0; i < 1024; i++)
         ext_ram[i] = 32'b0;
     if($value$plusargs("imem=%s", s))

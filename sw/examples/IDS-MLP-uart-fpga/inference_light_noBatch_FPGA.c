@@ -12,7 +12,6 @@
 #include "../../drivers/irq.h"
 #include <stdint.h>
 
-#define DEBUG_IF_ADDR 0x10008010 
 
 // --- Dimensions ---
 #define INPUT_DIM 122
@@ -34,7 +33,6 @@ typedef union {
 } float_bytes_t;
 
 volatile float_bytes_t rx_var;
-uart uart0;
 
 // =============================================================================
 // LIGHTWEIGHT MATH HELPERS 
@@ -126,7 +124,8 @@ int main() {
     // Setup
     SET_MTVEC_VECTOR_MODE();
     count = 0;
-    uart_init(&uart0, (uint32_t *) 0x10008010);
+    uart_init(&uart0, (uint32_t *) UART0_BASE);
+    uart_set_irq(&uart0, UART_RX_IRQ);
 
     // Hardcoded Test Vector (To verify boot/logic without UART)
     // This ensures your FPGA is alive immediately after bitstream load.
@@ -193,8 +192,7 @@ void msi_handler() {}
 void fast_irq0_handler()
 {
     // Read Byte
-    char *rx_ptr = (char*)(uart0.base_addr) + UART_RX_ADDR_OFFSET;
-    char rx_byte = *rx_ptr;
+    char rx_byte = uart_receive_byte(&uart0);
     
     // Assembly Float
     rx_var.bytes[count % 4] = rx_byte;
