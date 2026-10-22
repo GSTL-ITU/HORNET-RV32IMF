@@ -26,11 +26,15 @@ CORE_SRCS = rtl/core/hornet_core.v rtl/core/if_stage.v rtl/core/id_stage.v rtl/c
 FPU_SRCS  = rtl/fpu/fpu_top.v rtl/fpu/fpu_fma.v rtl/fpu/fpu_divsqrt.v rtl/fpu/fpu_cvt.v rtl/fpu/fpu_round.v \
             rtl/fpu/fpu_decoder.v rtl/fpu/fpu_sign_inj.v rtl/fpu/fpu_min_max.v rtl/fpu/fpu_compare.v \
             rtl/fpu/fpu_classifier.v
+SOC_SRCS  = rtl/soc/hornet_soc.v rtl/soc/imem.v rtl/soc/dmem.v rtl/soc/data_router.v rtl/soc/obi_axil_bridge.v \
+            rtl/soc/axil_xbar.v rtl/soc/axil_timer.v rtl/soc/axil_uart.v rtl/soc/axil_gpio.v rtl/soc/sync_fifo.v \
+            rtl/soc/axil_sysctl.v
 RTL_SRCS  = $(CORE_SRCS) $(FPU_SRCS)
 RTL_INC   = -Irtl/core -Irtl/fpu
 
 SIM        = $(BUILD)/sim/core/Vhornet_tb
 SIM_FPU    = $(BUILD)/sim/fpu/Vfpu_tb
+SIM_SOC    = $(BUILD)/sim/soc/Vsoc_tb
 VERILATOR_FLAGS = --binary --timing -j $(JOBS) -Wno-fatal -Wno-lint -Wno-style +1364-2005ext+v \
                   --trace-fst --timescale 1ns/1ps $(RTL_INC)
 
@@ -43,7 +47,12 @@ MEM_STALL ?= 30
 RANDOM    ?= 200
 SEED      ?= 1
 
-.PHONY: help docker-build shell tool-versions lint sim test cosim cosim-stall random fpu-test regress clean
+# riscv-formal: parallel checks, timeout per check in seconds, optional subset
+FORMAL_JOBS    ?= 6
+FORMAL_TIMEOUT ?= 900
+FORMAL_CHECKS  ?=
+
+.PHONY: help docker-build shell tool-versions lint sim test cosim cosim-stall random fpu-test formal soc-sim sw-tests regress clean
 
 help:
 	@echo "make docker-build   Build the $(IMAGE) image"
@@ -55,6 +64,9 @@ help:
 	@echo "make cosim-stall    cosim with random memory wait states (MEM_STALL=$(MEM_STALL))"
 	@echo "make fpu-test       FPU alone against TestFloat vectors (all rounding modes)"
 	@echo "make random         RANDOM=$(RANDOM) random programs vs. Spike, plain and with wait states"
+	@echo "make formal         riscv-formal on the RVFI port (FORMAL_JOBS=$(FORMAL_JOBS), FORMAL_CHECKS=\"reg_ch0 ...\")"
+	@echo "make soc-sim HEX=<path/prog>  Run <prog>.imem.hex/.dmem.hex on the SoC testbench"
+	@echo "make sw-tests       Build and run the SoC test programs in sw/tests"
 	@echo "make regress        Everything above plus formal"
 	@echo "make clean          Remove $(BUILD)/"
 
@@ -77,6 +89,8 @@ $(RISCV_FORMAL):
 lint:
 	$(DOCKER_RUN) verilator --lint-only -Wall --language 1364-2005 $(RTL_INC) --top-module hornet_core \
 	    rtl/lint.vlt $(RTL_SRCS)
+	$(DOCKER_RUN) verilator --lint-only -Wall --language 1364-2005 $(RTL_INC) --top-module hornet_soc \
+	    rtl/lint.vlt $(RTL_SRCS) $(SOC_SRCS)
 
 sim: $(SIM)
 
@@ -100,6 +114,21 @@ fpu-test: $(SIM_FPU) $(BUILD)/fpu/vectors.txt
 	$(DOCKER_RUN) sh -c '$(SIM_FPU) +vectors=$(BUILD)/fpu/vectors.txt | tee $(BUILD)/fpu/fpu_test.log | grep -v "^- "'
 	@grep -q "^PASS" $(BUILD)/fpu/fpu_test.log
 
+IMEM_SIZE ?= 65536
+DMEM_SIZE ?= 65536
+$(SIM_SOC): $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv
+	@mkdir -p $(@D)
+	$(DOCKER_RUN) verilator $(VERILATOR_FLAGS) --top-module soc_tb --Mdir $(@D) -o $(@F) \
+	    -GIMEM_SIZE=$$(($(IMEM_SIZE))) -GDMEM_SIZE=$$(($(DMEM_SIZE))) $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv > $(@D).log
+	@echo "Built $@"
+
+SOC_ARGS ?=
+soc-sim: $(SIM_SOC)
+	$(DOCKER_RUN) sh -c '$(SIM_SOC) +imem=$(HEX).imem.hex +dmem=$(HEX).dmem.hex +uart_log=$(HEX).uart.log $(SOC_ARGS) | grep -v "^- "'
+
+sw-tests: $(SIM_SOC)
+	$(DOCKER_RUN) python3 scripts/run_sw_tests.py --sim $(SIM_SOC) -j $(JOBS)
+
 test: $(SIM) $(RISCV_TESTS)
 	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --suites $(SUITES) -j $(JOBS) $(TEST_ARGS)
 
@@ -116,7 +145,10 @@ random: $(SIM)
 	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --spike -j $(JOBS) --random $(RANDOM) \
 	    --seed $(SEED) --mem-stall $(MEM_STALL) --workdir $(BUILD)/random-stall
 
-regress: lint fpu-test cosim cosim-stall random
+formal: $(RISCV_FORMAL)
+	$(DOCKER_RUN) env FORMAL_TIMEOUT=$(FORMAL_TIMEOUT) scripts/run_formal.sh $(BUILD) $(FORMAL_JOBS) $(FORMAL_CHECKS)
+
+regress: lint fpu-test cosim cosim-stall random formal
 
 clean:
 	rm -rf $(BUILD)
