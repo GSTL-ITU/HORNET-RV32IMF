@@ -2,7 +2,12 @@
 #
 #   vivado -mode batch -source build.tcl -tclargs <out dir> <imem.hex> <dmem.hex> [IMEM_SIZE DMEM_SIZE CLK_DIV BOOT_ADDR]
 #
-# The program images become the initial contents of the block RAMs.
+# The program images become the initial contents of the block RAMs. Without
+# arguments it builds build/vivado-batch/ with the default images (bootloader + LED blink).
+set here      [file dirname [file normalize [info script]]]
+if {![info exists argv] || [llength $argv] == 0} {
+    set argv [list $here/../../build/vivado-batch $here/default/imem.hex $here/default/dmem.hex 65536 65536 20 0xF000]
+}
 set out       [file normalize [lindex $argv 0]]
 set imem      [file normalize [lindex $argv 1]]
 set dmem      [file normalize [lindex $argv 2]]
@@ -10,7 +15,6 @@ set imem_size [expr {[llength $argv] > 3 ? [lindex $argv 3] : 65536}]
 set dmem_size [expr {[llength $argv] > 4 ? [lindex $argv 4] : 65536}]
 set clk_div   [expr {[llength $argv] > 5 ? [lindex $argv 5] : 20}]
 set boot_addr [expr {[llength $argv] > 6 ? [lindex $argv 6] : 0}]
-set here      [file dirname [file normalize [info script]]]
 set rtl       [file normalize $here/../../rtl]
 
 file mkdir $out

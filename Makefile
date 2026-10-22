@@ -52,7 +52,7 @@ FORMAL_TIMEOUT ?= 2400
 FORMAL_CHECKS  ?=
 
 .PHONY: help docker-build shell tool-versions lint sim test cosim cosim-stall random fpu-test formal soc-sim sw-tests boot-test regress clean \
-        fpga-build fpga-program fpga-project fpga-ip fpga-bd
+        fpga-build fpga-default fpga-program fpga-project fpga-ip fpga-bd
 
 help:
 	@echo "make docker-build   Build the $(IMAGE) image"
@@ -171,7 +171,8 @@ regress: lint fpu-test cosim cosim-stall random formal
 # ------------------------------------------------------------------ FPGA (Vivado on the host)
 VIVADO    ?= $(shell command -v vivado 2>/dev/null || echo /opt/Xilinx/2025.2/Vivado/bin/vivado)
 FPGA_PROG ?= sw/examples/gpio
-CLK_DIV   ?= 20
+# empty: the program's CLK_DIV (sw/common.mk, default 20 = 50 MHz)
+CLK_DIV   ?=
 FPGA_OUT   = $(BUILD)/fpga/$(notdir $(FPGA_PROG))
 
 # BOOTLOADER=1 adds sw/bootloader at the top of IMEM and starts there
@@ -191,8 +192,24 @@ fpga-build:
 	fi && \
 	cd $(FPGA_OUT) && $(VIVADO) -mode batch -nojournal -log vivado.log \
 	    -source $(CURDIR)/fpga/nexys4ddr/build.tcl -tclargs . $(CURDIR)/$(FPGA_OUT)/imem.hex \
-	    $(CURDIR)/$(FPGA_OUT)/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(CLK_DIV) $$BOOT_ADDR > /dev/null; \
+	    $(CURDIR)/$(FPGA_OUT)/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(if $(CLK_DIV),$(CLK_DIV),$$PROG_CLK_DIV) $$BOOT_ADDR > /dev/null; \
 	    grep "^RESULT" vivado.log
+
+# images the Vivado scripts use without arguments (GUI): bootloader + LED blink (board), + AXI GPIO counter (block design)
+fpga-default:
+	$(MAKE) -s -C sw/examples/gpio
+	$(MAKE) -s -C sw/bootloader
+	@mkdir -p fpga/nexys4ddr/default
+	$(DOCKER_RUN) sh -c "python3 scripts/elf2hex.py sw/bootloader/build/bootloader.elf sw/examples/gpio/build/gpio_test.elf \
+	    fpga/nexys4ddr/default/imem.hex --base 0 --size 0x10000 --pad && \
+	    python3 scripts/elf2hex.py sw/bootloader/build/bootloader.elf sw/examples/gpio/build/gpio_test.elf \
+	    fpga/nexys4ddr/default/dmem.hex --base 0x10000000 --size 0x10000 --pad"
+	$(MAKE) -s -C sw/examples/axi_gpio
+	@mkdir -p fpga/ip/default
+	$(DOCKER_RUN) sh -c "python3 scripts/elf2hex.py sw/bootloader/build/bootloader.elf sw/examples/axi_gpio/build/axi_gpio.elf \
+	    fpga/ip/default/imem.hex --base 0 --size 0x10000 --pad && \
+	    python3 scripts/elf2hex.py sw/bootloader/build/bootloader.elf sw/examples/axi_gpio/build/axi_gpio.elf \
+	    fpga/ip/default/dmem.hex --base 0x10000000 --size 0x10000 --pad"
 
 fpga-program:
 	$(VIVADO) -mode batch -nojournal -nolog -source fpga/nexys4ddr/program.tcl -tclargs $(FPGA_OUT)/hornet_nexys4ddr.bit
@@ -202,7 +219,7 @@ fpga-project:
 	@mkdir -p $(BUILD)/fpga
 	. $(FPGA_PROG)/build/mem.cfg && cd $(BUILD)/fpga && $(VIVADO) -mode batch -nojournal -log project.log \
 	    -source $(CURDIR)/fpga/nexys4ddr/create_project.tcl -tclargs project $(CURDIR)/$(FPGA_PROG)/build/imem.hex \
-	    $(CURDIR)/$(FPGA_PROG)/build/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(CLK_DIV)
+	    $(CURDIR)/$(FPGA_PROG)/build/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(if $(CLK_DIV),$(CLK_DIV),$$PROG_CLK_DIV)
 
 fpga-ip:
 	@mkdir -p $(BUILD)/ip

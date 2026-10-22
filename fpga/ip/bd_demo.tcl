@@ -2,11 +2,27 @@
 # (LEDs) through its m_axi port; the HORNET UART goes to the USB-UART bridge.
 #
 #   vivado -mode batch -source bd_demo.tcl -tclargs <out dir> <ip repo> <imem.hex> <dmem.hex>
+#
+# Without arguments (Vivado GUI: Tools > Run Tcl Script) it packages the IP if
+# needed, uses the default images (bootloader + AXI GPIO counter) and creates
+# build/vivado-bd/; in the GUI it stops after the block design so it can be
+# opened and edited (Generate Bitstream builds it).
+set here [file dirname [file normalize [info script]]]
+set boot_addr 0
+if {![info exists argv] || [llength $argv] == 0} {
+    set argv [list $here/../../build/vivado-bd $here/../../build/ip $here/default/imem.hex $here/default/dmem.hex]
+    set boot_addr 0xF000
+}
 set out  [file normalize [lindex $argv 0]]
 set repo [file normalize [lindex $argv 1]]
 set imem [file normalize [lindex $argv 2]]
 set dmem [file normalize [lindex $argv 3]]
-set here [file dirname [file normalize [info script]]]
+if {![file exists $repo/hornet_soc/component.xml]} {
+    set saved_argv $argv
+    set argv [list $repo]
+    source $here/package_ip.tcl
+    set argv $saved_argv
+}
 
 file mkdir $out
 cd $out
@@ -19,7 +35,8 @@ update_ip_catalog
 
 create_bd_design hornet_bd
 create_bd_cell -type ip -vlnv gstl.itu:hornet:hornet_soc:1.0 hornet
-set_property -dict [list CONFIG.IMEM_INIT $out/imem.hex CONFIG.DMEM_INIT $out/dmem.hex CONFIG.CLK_FREQ 50000000] [get_bd_cells hornet]
+set_property -dict [list CONFIG.IMEM_INIT $out/imem.hex CONFIG.DMEM_INIT $out/dmem.hex CONFIG.CLK_FREQ 50000000 \
+    CONFIG.BOOT_ADDR $boot_addr] [get_bd_cells hornet]
 create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz clk
 set_property -dict [list CONFIG.PRIM_IN_FREQ 100.000 CONFIG.CLKOUT1_REQUESTED_OUT_FREQ 50.000 CONFIG.USE_RESET false] [get_bd_cells clk]
 create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset rst
@@ -49,6 +66,10 @@ save_bd_design
 make_wrapper -files [get_files hornet_bd.bd] -top -import
 set_property top hornet_bd_wrapper [current_fileset]
 add_files -fileset constrs_1 $here/bd_demo.xdc
+if {$rdi::mode eq "gui"} {
+    puts "RESULT: block design created in $out/bd_demo; run Generate Bitstream"
+    return
+}
 launch_runs synth_1 -jobs 4
 wait_on_run synth_1
 launch_runs impl_1 -to_step write_bitstream -jobs 4

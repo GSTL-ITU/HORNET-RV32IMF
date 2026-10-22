@@ -26,6 +26,8 @@ STACK_SIZE ?= 0x1000
 IMEM_ORIGIN ?= 0x0
 DMEM_SKIP   ?= 0x0
 OPT       ?= -O2
+# core clock of the bitstream: 1000 MHz / CLK_DIV (large memories need more than 20)
+CLK_DIV ?= 20
 # 1: printf supports %f (larger program)
 FLOAT_PRINTF ?= 0
 
@@ -78,7 +80,7 @@ $(OUT)/$(PROG).imem.hex: $(ELF)
 	    $(RISCV_PREFIX)size $<'
 	cp $(OUT)/$(PROG).imem.hex $(OUT)/imem.hex
 	cp $(OUT)/$(PROG).dmem.hex $(OUT)/dmem.hex
-	echo "IMEM_SIZE=$$(($(IMEM_SIZE))) DMEM_SIZE=$$(($(DMEM_SIZE))) PROG=$(PROG)" > $(OUT)/mem.cfg
+	echo "IMEM_SIZE=$$(($(IMEM_SIZE))) DMEM_SIZE=$$(($(DMEM_SIZE))) PROG=$(PROG) PROG_CLK_DIV=$(CLK_DIV)" > $(OUT)/mem.cfg
 
 size: $(ELF)
 	$(RUN) $(RISCV_PREFIX)size -A $<

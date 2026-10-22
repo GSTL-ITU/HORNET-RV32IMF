@@ -2,6 +2,8 @@ PROG = inference_light_noBatch_FPGA
 SRCS = inference_light_noBatch_FPGA.c
 # the weights need about 300 KB: 320 KB IMEM (80 of the 135 BRAM36 of the Artix-7 100T)
 IMEM_SIZE = 0x50000
+# 320 KB of block RAM spreads over the device: 41.7 MHz (1000 MHz / 24)
+CLK_DIV = 24
 include ../../common.mk
 
 

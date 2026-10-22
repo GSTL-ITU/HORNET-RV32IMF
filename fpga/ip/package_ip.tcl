@@ -7,6 +7,7 @@
 # peripherals occupy 0x2000_0000-0x2003_FFFF, so assign external slaves in
 # 0x4000_0000-0x7FFF_FFFF. IMEM_INIT/DMEM_INIT take absolute paths of the
 # program images (sw/<program>/build/imem.hex and dmem.hex).
+if {![info exists argv] || [llength $argv] == 0} { set argv [list [file normalize [file dirname [info script]]/../../build/ip]] }
 set out  [file normalize [lindex $argv 0]]
 set here [file dirname [file normalize [info script]]]
 set rtl  [file normalize $here/../../rtl]
