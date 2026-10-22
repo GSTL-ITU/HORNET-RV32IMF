@@ -14,3 +14,8 @@ lint_off -rule UNUSEDSIGNAL -file "*/div.v" -match "*alt_*"
 lint_off -rule UNUSEDSIGNAL -file "*/fpu_fma.v"
 lint_off -rule UNUSEDSIGNAL -file "*/fpu_divsqrt.v" -match "*'x'*"
 lint_off -rule UNUSEDSIGNAL -file "*/fpu_round.v"
+// unconnected outputs (RVFI in the SoC, unused grants)
+lint_off -rule PINCONNECTEMPTY
+// peripherals decode only their low address bits; the IMEM base may be 0
+lint_off -rule UNUSEDSIGNAL -file "rtl/soc/*"
+lint_off -rule UNSIGNED -file "*/data_router.v"
