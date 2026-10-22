@@ -1,3 +1,16 @@
 `verilator_config
 // the CSR address decode relies on case priority (mcountinhibit before mhpmevent)
 lint_off -rule CASEOVERLAP -file "*/control_unit.v"
+// kept from the original FPU unchanged
+lint_off -rule WIDTHTRUNC -file "*/fpu_compare.v"
+lint_off -rule WIDTHTRUNC -file "*fpu_min_max.v"
+lint_off -rule UNUSEDSIGNAL -file "*fpu_min_max.v"
+lint_off -rule UNUSEDSIGNAL -file "*/fpu_top.v" -match "*isSubnormalB*"
+// bits that are dropped on purpose
+lint_off -rule UNUSEDSIGNAL -file "*/ex_stage.v" -match "*jalr_sum*"
+lint_off -rule UNUSEDSIGNAL -file "*/csr_unit.v" -match "*trap_pc_i*"
+lint_off -rule UNUSEDSIGNAL -file "*/mul.v" -match "*product*"
+lint_off -rule UNUSEDSIGNAL -file "*/div.v" -match "*alt_*"
+lint_off -rule UNUSEDSIGNAL -file "*/fpu_fma.v"
+lint_off -rule UNUSEDSIGNAL -file "*/fpu_divsqrt.v" -match "*'x'*"
+lint_off -rule UNUSEDSIGNAL -file "*/fpu_round.v"

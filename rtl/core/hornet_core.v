@@ -121,7 +121,7 @@ wire [4:0]  em_trap_cause;
 wire [31:0] em_trap_tval;
 
 //MEM
-wire        mem_wait, mem_commit, mem_trap, mem_trap_intr, mem_mret, mem_retire;
+wire        mem_wait, mem_trap, mem_mret, mem_retire;
 wire [4:0]  mem_trap_cause;
 wire [31:0] mem_trap_tval;
 wire        mem_csr_we, mem_fp_dirty;
@@ -454,9 +454,7 @@ mem_stage MEM_STAGE
      .wb_fault_i(wb_fault),
      .hold_i(hold),
      .wait_o(mem_wait),
-     .commit_o(mem_commit),
      .trap_o(mem_trap),
-     .trap_intr_o(mem_trap_intr),
      .trap_cause_o(mem_trap_cause),
      .trap_tval_o(mem_trap_tval),
      .mret_o(mem_mret),

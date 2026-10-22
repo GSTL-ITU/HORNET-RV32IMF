@@ -23,12 +23,15 @@ CORE_SRCS = rtl/core/hornet_core.v rtl/core/if_stage.v rtl/core/id_stage.v rtl/c
             rtl/core/mem_stage.v rtl/core/wb_stage.v rtl/core/hazard_unit.v rtl/core/csr_unit.v \
             rtl/core/regfile.v rtl/core/control_unit.v rtl/core/imm_decoder.v rtl/core/ALU.v \
             rtl/core/mul.v rtl/core/div.v
-FPU_SRCS  = $(BUILD)/stub/fpu_top.v
+FPU_SRCS  = rtl/fpu/fpu_top.v rtl/fpu/fpu_fma.v rtl/fpu/fpu_divsqrt.v rtl/fpu/fpu_cvt.v rtl/fpu/fpu_round.v \
+            rtl/fpu/fpu_decoder.v rtl/fpu/fpu_sign_inj.v rtl/fpu/fpu_min_max.v rtl/fpu/fpu_compare.v \
+            rtl/fpu/fpu_classifier.v
 RTL_SRCS  = $(CORE_SRCS) $(FPU_SRCS)
 RTL_INC   = -Irtl/core -Irtl/fpu
 
 SIM        = $(BUILD)/sim/core/Vhornet_tb
-VERILATOR_FLAGS = --binary --timing -j $(JOBS) -Wno-fatal -Wno-lint -Wno-style \
+SIM_FPU    = $(BUILD)/sim/fpu/Vfpu_tb
+VERILATOR_FLAGS = --binary --timing -j $(JOBS) -Wno-fatal -Wno-lint -Wno-style +1364-2005ext+v \
                   --trace-fst --timescale 1ns/1ps $(RTL_INC)
 
 RISCV_TESTS  = verif/riscv-tests/isa/rv32ui/Makefrag
@@ -40,7 +43,7 @@ MEM_STALL ?= 30
 RANDOM    ?= 200
 SEED      ?= 1
 
-.PHONY: help docker-build shell tool-versions lint sim test cosim cosim-stall random regress clean
+.PHONY: help docker-build shell tool-versions lint sim test cosim cosim-stall random fpu-test regress clean
 
 help:
 	@echo "make docker-build   Build the $(IMAGE) image"
@@ -50,6 +53,7 @@ help:
 	@echo "make test           riscv-tests ($(SUITES)) on the core"
 	@echo "make cosim          The same, compared with Spike"
 	@echo "make cosim-stall    cosim with random memory wait states (MEM_STALL=$(MEM_STALL))"
+	@echo "make fpu-test       FPU alone against TestFloat vectors (all rounding modes)"
 	@echo "make random         RANDOM=$(RANDOM) random programs vs. Spike, plain and with wait states"
 	@echo "make regress        Everything above plus formal"
 	@echo "make clean          Remove $(BUILD)/"
@@ -82,6 +86,20 @@ $(SIM): $(RTL_SRCS) tb/hornet_tb.sv
 	    $(RTL_SRCS) tb/hornet_tb.sv > $(@D).log
 	@echo "Built $@"
 
+$(SIM_FPU): $(FPU_SRCS) tb/fpu_tb.sv
+	@mkdir -p $(@D)
+	$(DOCKER_RUN) verilator $(VERILATOR_FLAGS) --top-module fpu_tb --Mdir $(@D) -o $(@F) \
+	    $(FPU_SRCS) tb/fpu_tb.sv > $(@D).log
+	@echo "Built $@"
+
+$(BUILD)/fpu/vectors.txt: scripts/fpu_vectors.py
+	@mkdir -p $(@D)
+	$(DOCKER_RUN) python3 scripts/fpu_vectors.py --out $@
+
+fpu-test: $(SIM_FPU) $(BUILD)/fpu/vectors.txt
+	$(DOCKER_RUN) sh -c '$(SIM_FPU) +vectors=$(BUILD)/fpu/vectors.txt | tee $(BUILD)/fpu/fpu_test.log | grep -v "^- "'
+	@grep -q "^PASS" $(BUILD)/fpu/fpu_test.log
+
 test: $(SIM) $(RISCV_TESTS)
 	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --suites $(SUITES) -j $(JOBS) $(TEST_ARGS)
 
@@ -98,7 +116,7 @@ random: $(SIM)
 	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --spike -j $(JOBS) --random $(RANDOM) \
 	    --seed $(SEED) --mem-stall $(MEM_STALL) --workdir $(BUILD)/random-stall
 
-regress: lint cosim cosim-stall random
+regress: lint fpu-test cosim cosim-stall random
 
 clean:
 	rm -rf $(BUILD)

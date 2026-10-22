@@ -43,9 +43,7 @@ module mem_stage(input             clk_i,
                  output            wait_o,       //request not granted yet
 
                  //CSR unit
-                 output            commit_o,     //the instruction leaves MEM this cycle
                  output            trap_o,       //it traps
-                 output            trap_intr_o,
                  output     [4:0]  trap_cause_o,
                  output     [31:0] trap_tval_o,
                  output            mret_o,
@@ -101,9 +99,8 @@ wire       trap  = trap_i || (access && misaligned);
 wire [4:0] cause = trap_i ? trap_cause_i : load_i ? `EXC_LOAD_MISALIGNED : `EXC_STORE_MISALIGNED;
 wire [31:0] tval = trap_i ? trap_tval_i : result_i;
 
-assign commit_o     = valid_i && !hold_i && !wb_fault_i;
+wire   commit_o     = valid_i && !hold_i && !wb_fault_i; //the instruction leaves MEM this cycle
 assign trap_o       = commit_o && trap;
-assign trap_intr_o  = trap_intr_i;
 assign trap_cause_o = cause;
 assign trap_tval_o  = tval;
 assign mret_o       = commit_o && !trap && mret_i;
