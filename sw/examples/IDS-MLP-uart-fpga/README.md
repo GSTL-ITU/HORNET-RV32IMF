@@ -21,21 +21,24 @@ Unlike simple unit tests, this directory contains a complete embedded AI pipelin
 | :--- | :--- |
 | **`inference_light_noBatch_FPGA.c`** | **The Firmware:** The main C application. It initializes the UART and IRQ, computes the Dense layer dot-products, applies ReLU activations, and transmits the predicted classification back to the host. |
 | **`MLP_weights_folded.h`** | **The Model:** A C-header containing the pre-trained weights and biases. This is a "lightweight/folded" model where Batch Normalization math has been pre-computed and folded into the dense layers to save CPU cycles. |
-| **`Makefile` & `linksc.ld`** | **The Build System:** Scripts to compile the firmware and generate the `memory_init.mem` file for Vivado. |
-| **`test/`** | **Hardware-in-the-Loop Suite:** Contains Python scripts (`compare_all.py`), input test vectors (`inputs.txt`), expected ground-truth labels, and pre-compiled `.bit` streams for quick deployment. |
+| **`Makefile`** | **The Build System:** Uses `sw/common.mk` with a 320 KB IMEM for the weights; `make check` runs six samples through the SoC testbench and compares them with the FPGA results. |
+| **`test/`** | **Hardware-in-the-Loop Suite:** Contains Python scripts (`compare_all.py`, `make_uart_in.py`, `check_sim.py`), input test vectors (`inputs.txt`) and expected ground-truth labels. |
 
 ---
 
 ## 🚀 Quick Start Guide
 
-**1. Build the Firmware**
-Compile the C application and generate the `memory_init.mem` payload.
+**1. Build the Firmware and check it in simulation**
 ```bash
-make clean
-make build
+make          # IMEM/DMEM images in build/
+make check    # six test vectors through the SoC testbench, compared with test/label_results.txt
 ```
 **2. Synthesize & Flash the FPGA**
-Use the generated `.mem` file in your Vivado project to initialize the block RAM and program the board. *(Alternatively, you can skip synthesis and flash one of the pre-compiled bitstreams located in `test/bit_streams/` if your hardware matches).*
+From the repository root (the program's IMEM size is taken from its build):
+```bash
+make fpga-build FPGA_PROG=sw/examples/IDS-MLP-uart-fpga
+make fpga-program FPGA_PROG=sw/examples/IDS-MLP-uart-fpga
+```
 
 **3. Run the Hardware-in-the-Loop Test**
 Navigate to the `test/` subdirectory to stream the NSL-KDD feature vectors from your PC to the running FPGA. The Python script will compare the FPGA's hardware predictions against the expected labels.

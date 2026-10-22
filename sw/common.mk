@@ -4,7 +4,8 @@
 #     SRCS = main.c util.c    # optional, default: all *.c and *.S here
 #     include ../../common.mk
 #
-# make            ELF, listing and the IMEM/DMEM images in build/
+# make            ELF, listing and the IMEM/DMEM images in build/ (also as imem.hex,
+#                 dmem.hex and mem.cfg for the FPGA flow)
 # make sim        run it on the SoC testbench (Verilator)
 # make size       section sizes
 # make clean
@@ -21,6 +22,9 @@ OUT       ?= build
 IMEM_SIZE ?= 0x10000
 DMEM_SIZE ?= 0x10000
 STACK_SIZE ?= 0x1000
+# start of the program in IMEM and DMEM (the bootloader uses the top of both)
+IMEM_ORIGIN ?= 0x0
+DMEM_SKIP   ?= 0x0
 OPT       ?= -O2
 # 1: printf supports %f (larger program)
 FLOAT_PRINTF ?= 0
@@ -49,7 +53,8 @@ CFLAGS  += -march=$(MARCH) -mabi=$(MABI) $(OPT) -g -Wall -mstrict-align \
            -ffunction-sections -fdata-sections -I$(SW)/drivers
 LDFLAGS += -nostartfiles -specs=nano.specs -T $(SW)/common/link.ld -Wl,--gc-sections \
            -Wl,--defsym=__imem_size=$(IMEM_SIZE) -Wl,--defsym=__dmem_size=$(DMEM_SIZE) \
-           -Wl,--defsym=__stack_size=$(STACK_SIZE) -Wl,-Map=$(OUT)/$(PROG).map \
+           -Wl,--defsym=__stack_size=$(STACK_SIZE) -Wl,--defsym=__imem_origin=$(IMEM_ORIGIN) \
+           -Wl,--defsym=__dmem_skip=$(DMEM_SKIP) -Wl,-Map=$(OUT)/$(PROG).map \
            -Wl,--no-warn-rwx-segments
 ifeq ($(FLOAT_PRINTF),1)
 LDFLAGS += -u _printf_float
@@ -71,6 +76,9 @@ $(OUT)/$(PROG).imem.hex: $(ELF)
 	    python3 $(TOP)/scripts/elf2hex.py $< $(OUT)/$(PROG).imem.hex --base 0x0 --size $(IMEM_SIZE) --pad && \
 	    python3 $(TOP)/scripts/elf2hex.py $< $(OUT)/$(PROG).dmem.hex --base 0x10000000 --size $(DMEM_SIZE) --pad && \
 	    $(RISCV_PREFIX)size $<'
+	cp $(OUT)/$(PROG).imem.hex $(OUT)/imem.hex
+	cp $(OUT)/$(PROG).dmem.hex $(OUT)/dmem.hex
+	echo "IMEM_SIZE=$$(($(IMEM_SIZE))) DMEM_SIZE=$$(($(DMEM_SIZE))) PROG=$(PROG)" > $(OUT)/mem.cfg
 
 size: $(ELF)
 	$(RUN) $(RISCV_PREFIX)size -A $<

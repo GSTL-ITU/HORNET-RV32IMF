@@ -7,7 +7,8 @@ module hornet_soc #(parameter IMEM_SIZE = 65536,
                     parameter IMEM_INIT = "",
                     parameter DMEM_INIT = "",
                     parameter CLK_FREQ  = 50000000,
-                    parameter BAUD      = 115200)
+                    parameter BAUD      = 115200,
+                    parameter BOOT_ADDR = 32'h0000_0000) //reset vector (the bootloader sits at the top of IMEM)
 (input         clk_i,
  input         rst_ni, //synchronous release
 
@@ -51,7 +52,7 @@ wire [31:0] data_addr, data_wdata, data_rdata;
 wire        msip, mtip, uart_irq, gpio_irq;
 wire [63:0] mtime;
 
-hornet_core #(.RESET_VECTOR(32'h0000_0000), .MTVEC_RESET(32'h0000_0000)) CORE
+hornet_core #(.RESET_VECTOR(BOOT_ADDR), .MTVEC_RESET(BOOT_ADDR)) CORE
     (.clk_i(clk_i),
      .rst_ni(rst_ni),
      .instr_req_o(instr_req),

@@ -4,10 +4,11 @@
 OUTPUT_ARCH(riscv)
 ENTRY(_start)
 
+/* The bootloader links itself to the top of IMEM and DMEM with __imem_origin and __dmem_skip. */
 MEMORY
 {
-    IMEM (rx)  : ORIGIN = 0x00000000, LENGTH = __imem_size
-    DMEM (rw)  : ORIGIN = 0x10000000, LENGTH = __dmem_size
+    IMEM (rx)  : ORIGIN = __imem_origin, LENGTH = __imem_size - __imem_origin
+    DMEM (rw)  : ORIGIN = 0x10000000 + __dmem_skip, LENGTH = __dmem_size - __dmem_skip
 }
 
 __stack_size = DEFINED(__stack_size) ? __stack_size : 0x1000;

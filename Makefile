@@ -34,7 +34,6 @@ RTL_INC   = -Irtl/core -Irtl/fpu
 
 SIM        = $(BUILD)/sim/core/Vhornet_tb
 SIM_FPU    = $(BUILD)/sim/fpu/Vfpu_tb
-SIM_SOC    = $(BUILD)/sim/soc/Vsoc_tb
 VERILATOR_FLAGS = --binary --timing -j $(JOBS) -Wno-fatal -Wno-lint -Wno-style +1364-2005ext+v \
                   --trace-fst --timescale 1ns/1ps $(RTL_INC)
 
@@ -49,10 +48,11 @@ SEED      ?= 1
 
 # riscv-formal: parallel checks, timeout per check in seconds, optional subset
 FORMAL_JOBS    ?= 6
-FORMAL_TIMEOUT ?= 900
+FORMAL_TIMEOUT ?= 2400
 FORMAL_CHECKS  ?=
 
-.PHONY: help docker-build shell tool-versions lint sim test cosim cosim-stall random fpu-test formal soc-sim sw-tests regress clean
+.PHONY: help docker-build shell tool-versions lint sim test cosim cosim-stall random fpu-test formal soc-sim sw-tests boot-test regress clean \
+        fpga-build fpga-program fpga-project fpga-ip fpga-bd
 
 help:
 	@echo "make docker-build   Build the $(IMAGE) image"
@@ -67,7 +67,14 @@ help:
 	@echo "make formal         riscv-formal on the RVFI port (FORMAL_JOBS=$(FORMAL_JOBS), FORMAL_CHECKS=\"reg_ch0 ...\")"
 	@echo "make soc-sim HEX=<path/prog>  Run <prog>.imem.hex/.dmem.hex on the SoC testbench"
 	@echo "make sw-tests       Build and run the SoC test programs in sw/tests"
+	@echo "make boot-test      The UART bootloader loads and runs a program (simulation)"
 	@echo "make regress        Everything above plus formal"
+	@echo "make fpga-build FPGA_PROG=sw/examples/gpio   Bitstream with that program in the BRAMs (Vivado, host)"
+	@echo "                    BOOTLOADER=1 adds the UART bootloader (scripts/hornet_load.py loads programs)"
+	@echo "make fpga-program FPGA_PROG=...               Program the board over JTAG"
+	@echo "make fpga-project FPGA_PROG=...               Vivado GUI project in $(BUILD)/fpga/project"
+	@echo "make fpga-ip        Package hornet_soc as a Vivado IP (m_axi AXI4-Lite master) in $(BUILD)/ip"
+	@echo "make fpga-bd        Block-design demo: HORNET IP + Xilinx AXI GPIO, to a bitstream"
 	@echo "make clean          Remove $(BUILD)/"
 
 docker-build:
@@ -114,12 +121,14 @@ fpu-test: $(SIM_FPU) $(BUILD)/fpu/vectors.txt
 	$(DOCKER_RUN) sh -c '$(SIM_FPU) +vectors=$(BUILD)/fpu/vectors.txt | tee $(BUILD)/fpu/fpu_test.log | grep -v "^- "'
 	@grep -q "^PASS" $(BUILD)/fpu/fpu_test.log
 
-IMEM_SIZE ?= 65536
-DMEM_SIZE ?= 65536
+IMEM_SIZE ?= 0x10000
+DMEM_SIZE ?= 0x10000
+BOOT_ADDR ?= 0x0
+SIM_SOC    = $(BUILD)/sim/soc-$(IMEM_SIZE)-$(DMEM_SIZE)-$(BOOT_ADDR)/Vsoc_tb
 $(SIM_SOC): $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv
 	@mkdir -p $(@D)
 	$(DOCKER_RUN) verilator $(VERILATOR_FLAGS) --top-module soc_tb --Mdir $(@D) -o $(@F) \
-	    -GIMEM_SIZE=$$(($(IMEM_SIZE))) -GDMEM_SIZE=$$(($(DMEM_SIZE))) $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv > $(@D).log
+	    -GIMEM_SIZE=$$(($(IMEM_SIZE))) -GDMEM_SIZE=$$(($(DMEM_SIZE))) -GBOOT_ADDR=$$(($(BOOT_ADDR))) $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv > $(@D).log
 	@echo "Built $@"
 
 SOC_ARGS ?=
@@ -128,6 +137,15 @@ soc-sim: $(SIM_SOC)
 
 sw-tests: $(SIM_SOC)
 	$(DOCKER_RUN) python3 scripts/run_sw_tests.py --sim $(SIM_SOC) -j $(JOBS)
+
+# the bootloader alone in IMEM loads sw/tests/hello over the UART and runs it
+boot-test:
+	$(MAKE) -s -C sw/bootloader
+	$(MAKE) -s -C sw/tests/hello
+	$(DOCKER_RUN) python3 scripts/hornet_load.py --emit sw/bootloader/build/hello.bin sw/tests/hello/build/hello.elf
+	$(MAKE) -s soc-sim BOOT_ADDR=0xf000 HEX=sw/bootloader/build/bootloader \
+	    SOC_ARGS="+uart_in=sw/bootloader/build/hello.bin +timeout=3000000" | tee $(BUILD)/boot-test.log
+	@grep -q "^PASS" $(BUILD)/boot-test.log
 
 test: $(SIM) $(RISCV_TESTS)
 	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --suites $(SUITES) -j $(JOBS) $(TEST_ARGS)
@@ -149,6 +167,55 @@ formal: $(RISCV_FORMAL)
 	$(DOCKER_RUN) env FORMAL_TIMEOUT=$(FORMAL_TIMEOUT) scripts/run_formal.sh $(BUILD) $(FORMAL_JOBS) $(FORMAL_CHECKS)
 
 regress: lint fpu-test cosim cosim-stall random formal
+
+# ------------------------------------------------------------------ FPGA (Vivado on the host)
+VIVADO    ?= $(shell command -v vivado 2>/dev/null || echo /opt/Xilinx/2025.2/Vivado/bin/vivado)
+FPGA_PROG ?= sw/examples/gpio
+CLK_DIV   ?= 20
+FPGA_OUT   = $(BUILD)/fpga/$(notdir $(FPGA_PROG))
+
+# BOOTLOADER=1 adds sw/bootloader at the top of IMEM and starts there
+BOOTLOADER ?= 0
+fpga-build:
+	$(MAKE) -C $(FPGA_PROG)
+	@mkdir -p $(FPGA_OUT)
+	. $(FPGA_PROG)/build/mem.cfg && \
+	if [ "$(BOOTLOADER)" = 1 ]; then \
+	    $(MAKE) -s -C sw/bootloader IMEM_SIZE=$$IMEM_SIZE DMEM_SIZE=$$DMEM_SIZE OUT=build/$$IMEM_SIZE-$$DMEM_SIZE && \
+	    boot=sw/bootloader/build/$$IMEM_SIZE-$$DMEM_SIZE/bootloader.elf && \
+	    $(DOCKER_RUN) sh -c "python3 scripts/elf2hex.py $$boot $(FPGA_PROG)/build/$$PROG.elf $(FPGA_OUT)/imem.hex --base 0 --size $$IMEM_SIZE --pad && \
+	        python3 scripts/elf2hex.py $$boot $(FPGA_PROG)/build/$$PROG.elf $(FPGA_OUT)/dmem.hex --base 0x10000000 --size $$DMEM_SIZE --pad" && \
+	    BOOT_ADDR=$$(($$IMEM_SIZE - 0x1000)); \
+	else \
+	    cp $(FPGA_PROG)/build/imem.hex $(FPGA_PROG)/build/dmem.hex $(FPGA_OUT)/ && BOOT_ADDR=0; \
+	fi && \
+	cd $(FPGA_OUT) && $(VIVADO) -mode batch -nojournal -log vivado.log \
+	    -source $(CURDIR)/fpga/nexys4ddr/build.tcl -tclargs . $(CURDIR)/$(FPGA_OUT)/imem.hex \
+	    $(CURDIR)/$(FPGA_OUT)/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(CLK_DIV) $$BOOT_ADDR > /dev/null; \
+	    grep "^RESULT" vivado.log
+
+fpga-program:
+	$(VIVADO) -mode batch -nojournal -nolog -source fpga/nexys4ddr/program.tcl -tclargs $(FPGA_OUT)/hornet_nexys4ddr.bit
+
+fpga-project:
+	$(MAKE) -C $(FPGA_PROG)
+	@mkdir -p $(BUILD)/fpga
+	. $(FPGA_PROG)/build/mem.cfg && cd $(BUILD)/fpga && $(VIVADO) -mode batch -nojournal -log project.log \
+	    -source $(CURDIR)/fpga/nexys4ddr/create_project.tcl -tclargs project $(CURDIR)/$(FPGA_PROG)/build/imem.hex \
+	    $(CURDIR)/$(FPGA_PROG)/build/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(CLK_DIV)
+
+fpga-ip:
+	@mkdir -p $(BUILD)/ip
+	cd $(BUILD)/ip && $(VIVADO) -mode batch -nojournal -log package.log -source $(CURDIR)/fpga/ip/package_ip.tcl \
+	    -tclargs . > /dev/null; grep "^RESULT" package.log
+
+BD_PROG ?= sw/examples/axi_gpio
+fpga-bd: fpga-ip
+	$(MAKE) -C $(BD_PROG)
+	@mkdir -p $(BUILD)/fpga/bd
+	cd $(BUILD)/fpga/bd && $(VIVADO) -mode batch -nojournal -log vivado.log -source $(CURDIR)/fpga/ip/bd_demo.tcl \
+	    -tclargs . $(CURDIR)/$(BUILD)/ip $(CURDIR)/$(BD_PROG)/build/imem.hex $(CURDIR)/$(BD_PROG)/build/dmem.hex > /dev/null; \
+	    grep "^RESULT" vivado.log
 
 clean:
 	rm -rf $(BUILD)

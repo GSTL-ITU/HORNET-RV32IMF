@@ -1,48 +1,51 @@
 # 💡 GPIO Hardware Verification Test
 
-This directory contains a bare-metal integration test for the **HORNET-RV32IMF** RISC-V core. It is designed to validate the custom Wishbone GPIO peripheral (`gpio_wb.v`) and confirm that the software driver successfully maps to the physical FPGA output pins.
+This directory contains a bare-metal integration test for the **HORNET-RV32IMF** RISC-V core. It is designed to validate the GPIO peripheral (`rtl/soc/axil_gpio.v`) and confirm that the software driver successfully maps to the physical FPGA output pins.
 
 ## 📐 Test Architecture
 
 This test is a classic "Blinky" application, acting as the "Hello World" of embedded hardware. It verifies the entire hardware-software stack from the C application layer down to the physical FPGA pins:
 
 1. **Bare-Metal C Firmware:** A simple infinite loop that toggles a state variable and utilizes a blocking delay.
-2. **GPIO Driver:** Writes the state variable directly to the memory-mapped GPIO base address (`0x10008020`).
-3. **Wishbone Interconnect:** Routes the write transaction to the GPIO slave module.
-4. **Physical Output:** The GPIO module latches the lowest bit and drives the `gpio_trigger_o` signal, which is constrained to a physical LED on the FPGA board.
+2. **GPIO Driver:** Writes the state variable to the GPIO output register (`0x2002_0000`).
+3. **AXI4-Lite Interconnect:** Routes the write transaction to the GPIO slave module.
+4. **Physical Output:** The GPIO module drives `gpio_o[0]`, which `fpga/nexys4ddr/hornet_nexys4ddr.v` connects to LED0.
 
 ```text
 [ C Application (main.c) ] 
        |
        v
-[ GPIO Driver (gpio.c) ] --- (Memory Write to 0x10008020)
+[ GPIO Driver (gpio.c) ] --- (Memory Write to 0x20020000)
        |
        v
-[ Wishbone Interconnect ] 
+[ AXI4-Lite Interconnect ] 
        |
        v
-[ Hardware (gpio_wb.v) ] --- (Drives gpio_trigger_o) ---> [ 💡 Physical LED ]
+[ Hardware (axil_gpio.v) ] --- (Drives gpio_o[0]) ---> [ 💡 LED0 ]
 ```
 
 ## 📦 Prerequisites
 
 * **Hardware:** Nexys-4-DDR (or equivalent FPGA development board).
-* **Constraints:** Ensure that `gpio_trigger_o` is correctly mapped to an LED in your constraints file.
-* **Toolchain:** `riscv32-unknown-elf-gcc` for compiling the firmware.
+* **Constraints:** `fpga/nexys4ddr/nexys4ddr.xdc` maps `gpio_o[15:0]` to LED[15:0].
+* **Toolchain:** the `hornet-dev` Docker image (`make docker-build` in the repository root); `sw/common.mk` uses it automatically.
 
 ## 🚀 Execution Commands
 
 **1. Build the Bare-Metal Firmware**
-Compile the C firmware, link the hardware driver (`gpio.c`), and generate the `memory_init.mem` file for Vivado synthesis:
+Compile the C firmware with the drivers in `sw/drivers` and generate the IMEM/DMEM images in `build/`:
 ```bash
-make clean
-make build
+make
 ```
 
 **2. Flash the FPGA**
-Run synthesis and implementation in your FPGA toolchain (e.g., Vivado) and program your Nexys-4-DDR board with the resulting bitstream.
+From the repository root, build a bitstream with this program in the block RAMs and program the Nexys-4-DDR:
+```bash
+make fpga-build FPGA_PROG=sw/examples/gpio
+make fpga-program FPGA_PROG=sw/examples/gpio
+```
 
-*(Note: If the system clock frequency differs significantly from the default expectations, you may need to adjust the `delay()` count in `main.c` to ensure the blinking is visible to the human eye).*
+*(Note: the delay loop counts iterations; at 50 MHz the LED toggles a few times per second. `delay_ms()` in `sw/drivers/timer.h` gives exact delays).*
 
 ---
 

@@ -38,14 +38,17 @@ pip install pyserial
 ## 🚀 Execution Commands
 
 **1. Build the Bare-Metal Firmware**
-Compile the C firmware, link the hardware drivers (`uart.c`, `irq.c`), and generate the `memory_init.mem` file for Vivado synthesis:
+Compile the C firmware with the drivers in `sw/drivers` and generate the IMEM/DMEM images in `build/`:
 ```bash
-make clean
-make build
+make
 ```
 
 **2. Flash the FPGA**
-Run synthesis and implementation in your FPGA toolchain (e.g., Vivado) and program your Nexys-4-DDR board with the resulting bitstream.
+From the repository root, build a bitstream with this program in the block RAMs and program the Nexys-4-DDR:
+```bash
+make fpga-build FPGA_PROG=sw/examples/uart-fpu-fpga
+make fpga-program FPGA_PROG=sw/examples/uart-fpu-fpga
+```
 
 **3. Run the Verification Script**
 Once the FPGA is powered and programmed, execute the Python script. Be sure to specify the correct serial port for your system (e.g., `/dev/ttyUSB1` for Linux, `COM3` for Windows):

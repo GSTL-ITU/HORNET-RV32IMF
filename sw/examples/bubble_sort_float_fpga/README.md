@@ -11,7 +11,7 @@ This test leverages a classic Bubble Sort algorithm applied to an array of singl
    * The GPIO LED is driven LOW (Off) to indicate the test is running.
    * The hardware FPU sorts the array.
    * A custom memory comparison checks the result against the expected array.
-3. **Physical Output:** If the array is sorted flawlessly, the GPIO driver writes a `1` to the Wishbone GPIO slave (`0x10008020`), turning the physical LED HIGH (On). The processor then safely halts in an infinite loop.
+3. **Physical Output:** If the array is sorted flawlessly, the GPIO driver writes a `1` to the AXI4-Lite GPIO (`0x2002_0000`), turning the physical LED HIGH (On). The processor then safely halts in an infinite loop.
 
 ```text
 [ Unsorted Float Array ] -> [ Hardware FPU (fgt.s, flw, fsw) ] -> [ Sorted Array ]
@@ -20,7 +20,7 @@ This test leverages a classic Bubble Sort algorithm applied to an array of singl
                                                                         |
                                                                  (Match == True?)
                                                                         |
-                                                             [ GPIO Driver (0x10008020) ]
+                                                             [ GPIO Driver (0x20020000) ]
                                                                         |
                                                                [ 💡 Physical LED ON ]
 ```
@@ -28,19 +28,22 @@ This test leverages a classic Bubble Sort algorithm applied to an array of singl
 ## 📦 Prerequisites
 
 * **Hardware:** Nexys-4-DDR (or equivalent FPGA development board).
-* **Constraints:** Ensure that `gpio_trigger_o` is correctly mapped to an LED in your constraints file.
-* **Toolchain:** `riscv32-unknown-elf-gcc` configured with `-march=rv32imf -mabi=ilp32f` for compiling the firmware.
+* **Constraints:** `fpga/nexys4ddr/nexys4ddr.xdc` maps `gpio_o[15:0]` to LED[15:0].
+* **Toolchain:** the `hornet-dev` Docker image (`make docker-build` in the repository root); `sw/common.mk` uses it automatically.
 
 ## 🚀 Execution Commands
 
 **1. Build the Bare-Metal Firmware**
-Compile the C firmware, link the hardware driver (`gpio.c`), and generate the `memory_init.mem` file for Vivado synthesis:
+Compile the C firmware with the drivers in `sw/drivers` and generate the IMEM/DMEM images in `build/`:
 ```bash
-make clean
-make build
+make
 ```
 **2. Flash the FPGA**
-Run synthesis and implementation in your FPGA toolchain (e.g., Vivado) and program your Nexys-4-DDR board with the resulting bitstream.
+From the repository root, build a bitstream with this program in the block RAMs and program the Nexys-4-DDR:
+```bash
+make fpga-build FPGA_PROG=sw/examples/bubble_sort_float_fpga
+make fpga-program FPGA_PROG=sw/examples/bubble_sort_float_fpga
+```
 
 ---
 

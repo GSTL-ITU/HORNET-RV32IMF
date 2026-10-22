@@ -1,45 +1,51 @@
-# 🧪 HORNET-RV32IMF Verification & Test Suites
+# HORNET-RV32IMF Example Programs
 
-This directory contains the bare-metal C firmware, linker scripts, and Python verification tools used to validate the **HORNET-RV32IMF** RISC-V core. These tests cover both RTL-level simulation (Barebones) and physical FPGA hardware deployment (Nexys-4-DDR).
+Bare-metal C programs for the HORNET SoC. They cover the peripherals, the FPU
+and a full neural-network inference. All of them build with the shared rules
+in [`sw/common.mk`](../common.mk); see [`sw/README.md`](../README.md) for the
+software environment.
 
-These test suites provide comprehensive coverage of the core's architecture, from basic peripheral Wishbone communication up to complex hardware floating-point arithmetic and system-level neural network inference.
+| Directory | Purpose | How it is checked |
+| :--- | :--- | :--- |
+| **`gpio/`** | "Hello World" of the board: blinks LED0 through the GPIO peripheral | LED on the board |
+| **`bubble_sort_float/`** | FPU loads, stores and compares in a bubble sort | `make sim` (exit code 0 = pass) |
+| **`bubble_sort_float_fpga/`** | The same sort on the board | LED0 on = pass |
+| **`fpu_filter/`** | IIR filter with FPU arithmetic, prints one letter per sample | `make sim` (UART output) |
+| **`uart-fpu-fpga/`** | Receives floats over UART (interrupts), returns add/sub/mul/div/sqrt | `fpu_test.py` on the host |
+| **`IDS-MLP-uart-fpga/`** | Folded MLP for intrusion detection (NSL-KDD), 300 KB of weights | `make check` (simulation), `compare_all.py` (board) |
+| **`axi_gpio/`** | Counts on LEDs through a Xilinx AXI GPIO on the external AXI4-Lite port | `make fpga-bd` in the repository root |
 
+The self-checking SoC tests (interrupts, AXI faults, FPU flags, `fence.i`) are
+in [`sw/tests`](../tests) and run with `make sw-tests` in the repository root.
 
+## Build and run
 
-## 📂 Test Suites Overview
+```bash
+cd sw/examples/gpio
+make              # build/gpio_test.elf, .dump, .imem.hex, .dmem.hex
+make sim          # run it on the SoC testbench (programs that end with exit())
+```
 
-The verification environment is divided into five primary test suites, each designed to stress-test specific components of the SoC:
+On the board (Nexys 4 DDR, Vivado on the host), from the repository root:
 
-| Test Directory | Purpose / Target Hardware | Description | Verification Method |
-| :--- | :--- | :--- | :--- |
-| **`gpio/`** | Basic System & GPIO | The "Hello World" of the core. Verifies the basic boot sequence and GPIO peripheral functionality by toggling a physical LED. | Visual (LED Blinking) |
-| **`bubble_sort_float_fpga/`** | FPU Memory & Branching | Validates the FPU's ability to handle loads (`flw`), stores (`fsw`), and hardware comparisons by executing a Bubble Sort on the FPGA. | Visual (LED ON = Pass) |
-| **`bubble_sort_float/`** | RTL Simulation (Barebones) | Optimized FPU verification for RTL simulators. Performs a floating-point bubble sort and writes status codes to the Debug Interface. | Simulation (1=Pass, 13=Fail) |
-| **`uart-fpu-fpga/`** | FPU Arithmetic & UART | A closed-loop integration test. Receives floats via UART, computes hardware arithmetic (Add, Sub, Mul, Div, Sqrt), and returns results to a host PC. | Python (`fpu_test.py`) |
-| **`IDS-MLP-uart-fpga/`** | Full System Integration | A high-workload application running a folded MLP neural network for Intrusion Detection. Verifies deep memory access and FPU performance. | Python (`compare_all.py`) |
+```bash
+make fpga-build FPGA_PROG=sw/examples/gpio      # bitstream in build/fpga/gpio/
+make fpga-program FPGA_PROG=sw/examples/gpio    # JTAG
+```
 
-## ⚙️ General Build & Execution Workflow
+The program images are the initial contents of the instruction and data block
+RAMs, so a new program needs a new bitstream. The UART runs at 115200 baud.
 
-While each test suite contains its own detailed `README.md`, they all share a unified Bare-Metal RISC-V compilation pipeline:
-
-1. **Compilation (`make build`):** Inside any test directory, running `make build` uses the `riscv32-unknown-elf-gcc` toolchain to compile the C and Assembly files into an `.elf` binary.
-2. **Memory Generation:** The `Makefile` extracts the raw binary and passes it through the custom `rom_generator` tool to create a `memory_init.mem` file.
-3. **Synthesis & Bitstream:** The `.mem` file is copied to the hardware source directory. Synthesis in Vivado embeds this program directly into the FPGA's Block RAM.
-4. **Hardware Execution:** Once flashed, the core automatically boots from the reset vector (`0x00000000`), sets up the C stack, and executes the test.
-5. **Simulation-Specific Result Codes:** For simulation-only tests (`sim_` prefix), the core communicates results via the **Debug Interface (0x10008010)**:
-   * **0x00000001:** Test Passed.
-   * **0x0000000D (13):** Test Failed (Logic/Data Mismatch).
-
-*Note: For tests requiring UART, a host PC must be connected via a Serial/USB bridge to transmit the test vectors and verify the outputs.*
-
-## 🗂️ Directory Structure Map
+## Directory Structure Map
 ```text
-test/
+examples/
+├── axi_gpio/               # Xilinx AXI GPIO on the external port (block design)
+├── bubble_sort_float/      # FPU array sorting test (simulation)
 ├── bubble_sort_float_fpga/ # FPU array sorting test (FPGA)
+├── fpu_filter/             # IIR filter, UART output
 ├── gpio/                   # Basic LED toggle test
 ├── IDS-MLP-uart-fpga/      # Neural Network Inference test
-│   └── test/               # Contains datasets, labels, and pre-compiled bitstreams
-├── sim_bubble_sort/        # RTL Simulation-only FPU test (Debug Interface)
+│   └── test/               # datasets, labels, host and simulation scripts
 └── uart-fpu-fpga/          # Python-driven FPU mathematical accuracy test
 ```
 

@@ -3,6 +3,7 @@
 
   elf2hex.py prog.elf out.hex --base 0x80000000 --size 0x400000
   elf2hex.py prog.elf imem.hex --base 0x00000000 --size 0x10000 --pad
+  elf2hex.py boot.elf prog.elf imem.hex --base 0 --size 0x10000 --pad   (several ELFs in one image)
 
 Only loadable bytes inside [base, base + size) are written. Addresses in the
 image are word indices relative to base. --pad writes every word of the region
@@ -15,23 +16,28 @@ from elftools.elf.elffile import ELFFile
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("elf")
-    ap.add_argument("out")
+    ap.add_argument("files", nargs="+", help="ELF files, then the output file")
     ap.add_argument("--base", type=lambda x: int(x, 0), required=True)
     ap.add_argument("--size", type=lambda x: int(x, 0), required=True)
     ap.add_argument("--pad", action="store_true")
     a = ap.parse_args()
 
+    if len(a.files) < 2:
+        sys.exit("need at least one ELF and the output file")
+    a.out = a.files[-1]
     image = {}
-    with open(a.elf, "rb") as f:
-        elf = ELFFile(f)
-        for seg in elf.iter_segments():
-            if seg["p_type"] != "PT_LOAD" or seg["p_filesz"] == 0:
-                continue
-            data = seg.data()
-            addr = seg["p_paddr"]
-            for i, b in enumerate(data):
-                image[addr + i] = b
+    for name in a.files[:-1]:
+        with open(name, "rb") as f:
+            elf = ELFFile(f)
+            for seg in elf.iter_segments():
+                if seg["p_type"] != "PT_LOAD" or seg["p_filesz"] == 0:
+                    continue
+                data = seg.data()
+                addr = seg["p_paddr"]
+                for i, b in enumerate(data):
+                    if addr + i in image and image[addr + i] != b:
+                        sys.exit("%s overlaps another ELF at 0x%x" % (name, addr + i))
+                    image[addr + i] = b
 
     used = [x for x in image if a.base <= x < a.base + a.size]
     outside = [x for x in image if not a.base <= x < a.base + a.size]
