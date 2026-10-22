@@ -1,0 +1,6 @@
+[submodule "verif/riscv-tests"]
+	path = verif/riscv-tests
+	url = https://github.com/riscv-software-src/riscv-tests.git
+[submodule "verif/riscv-formal"]
+	path = verif/riscv-formal
+	url = https://github.com/YosysHQ/riscv-formal.git
