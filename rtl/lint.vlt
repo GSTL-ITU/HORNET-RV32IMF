@@ -19,3 +19,5 @@ lint_off -rule PINCONNECTEMPTY
 // peripherals decode only their low address bits; the IMEM base may be 0
 lint_off -rule UNUSEDSIGNAL -file "rtl/soc/*"
 lint_off -rule UNSIGNED -file "*/data_router.v"
+// mepc[1:0] are never read
+lint_off -rule UNUSEDSIGNAL -file "*/csr_unit.v" -match "*mepc_q*"

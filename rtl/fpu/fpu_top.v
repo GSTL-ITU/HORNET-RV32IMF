@@ -23,6 +23,26 @@ wire is_ds  = op_i == `FPU_DIV || op_i == `FPU_SQRT;
 wire is_cvt = op_i >= `FPU_CVTWS;
 assign multi_o = is_fma || is_ds || is_cvt;
 
+`ifdef RISCV_FORMAL_ALTOPS
+//formal: same handshake, no arithmetic (riscv-formal has no F model)
+reg [1:0] alt_cnt;
+always @(posedge clk_i or negedge rst_ni)
+begin
+    if(!rst_ni)
+        alt_cnt <= 2'd0;
+    else if(kill_i)
+        alt_cnt <= 2'd0;
+    else if(start_i || (alt_cnt != 2'd0 && alt_cnt != 2'd3))
+        alt_cnt <= alt_cnt + 2'd1;
+end
+assign done_o = !multi_o || alt_cnt == 2'd3;
+always @*
+begin
+    result_o = a_i ^ b_i ^ c_i ^ {24'b0, op_i, rm_i};
+    flags_o  = result_o[4:0];
+end
+`else
+
 // decoder signals
 wire       sign_A, sign_B;
 wire [7:0] exp_A, exp_B, exp_A_for_sgninj, exp_B_for_sgninj;
@@ -72,7 +92,33 @@ fpu_cvt CVT(.clk_i(clk_i), .rst_ni(rst_ni), .start_i(start_i && is_cvt), .kill_i
             .op_i(op_i), .rm_i(rm_i), .a_i(a_i),
             .done_o(cvt_done), .result_o(cvt_out), .flags_o(cvt_flags));
 
-assign done_o = is_fma ? fma_done : is_ds ? ds_done : is_cvt ? cvt_done : 1'b1;
+//results of the multi-cycle units are registered once (rounding is not on the EX path)
+wire        unit_done  = is_fma ? fma_done : is_ds ? ds_done : cvt_done;
+wire [31:0] unit_out   = is_fma ? fma_out : is_ds ? ds_out : cvt_out;
+wire [4:0]  unit_flags = is_fma ? fma_flags : is_ds ? ds_flags : cvt_flags;
+reg         out_valid_q;
+reg  [31:0] out_q;
+reg  [4:0]  out_flags_q;
+
+always @(posedge clk_i or negedge rst_ni)
+begin
+    if(!rst_ni)
+    begin
+        out_valid_q <= 1'b0;
+        out_q <= 32'b0;
+        out_flags_q <= 5'b0;
+    end
+    else if(kill_i)
+        out_valid_q <= 1'b0;
+    else if(unit_done && !out_valid_q)
+    begin
+        out_valid_q <= 1'b1;
+        out_q <= unit_out;
+        out_flags_q <= unit_flags;
+    end
+end
+
+assign done_o = multi_o ? out_valid_q : 1'b1;
 
 always @*
 begin
@@ -93,10 +139,12 @@ begin
         `FPU_MVXW, `FPU_MVWX: result_o = a_i;
         default:
         begin
-            result_o = is_fma ? fma_out : is_ds ? ds_out : cvt_out;
-            flags_o  = is_fma ? fma_flags : is_ds ? ds_flags : cvt_flags;
+            result_o = out_q;
+            flags_o  = out_flags_q;
         end
     endcase
 end
+
+`endif
 
 endmodule
