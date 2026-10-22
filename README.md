@@ -278,6 +278,13 @@ and `tracer.v` (replaced by the RVFI port). Kept from version 1: `ALU.v`,
 
 ---
 
+## Future Plans
+1. Combine every ISA generation in a single repository. 
+2. Cache hierrachy.
+3. Further tests to stress test the FPGA build on real hardware.
+
+---
+
 ## 👤 Contact & Support
 
 For technical inquiries or bug reports, please open an issue in this repository or contact the organizers:
