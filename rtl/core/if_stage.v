@@ -12,6 +12,7 @@ module if_stage #(parameter RESET_VECTOR = 32'h0000_0000)
 
                  input             redirect_i,
                  input      [31:0] redirect_pc_i,
+                 input      [31:0] redirect_pc4_i, //redirect_pc_i + 4, computed in parallel
                  input             stall_i, //hold IF/ID
 
                  output reg        valid_o,
@@ -64,7 +65,7 @@ begin
         if(redirect_i && !new_req)
             pc_q <= redirect_pc_i;
         else if(new_req)
-            pc_q <= instr_addr_o + 32'd4;
+            pc_q <= waiting_q ? wait_pc_q + 32'd4 : redirect_i ? redirect_pc4_i : pc_q + 32'd4;
 
         if(accept)
         begin

@@ -36,7 +36,7 @@ reg  [18:0] irq_lines = 19'b0;
 reg  [63:0] mtime = 64'b0;
 
 wire        rvfi_valid, rvfi_trap, rvfi_halt, rvfi_intr;
-wire [63:0] rvfi_order, rvfi_mcycle, rvfi_minstret;
+wire [63:0] rvfi_order;
 wire [31:0] rvfi_insn, rvfi_rs1_rdata, rvfi_rs2_rdata, rvfi_rd_wdata, rvfi_pc_rdata, rvfi_pc_wdata;
 wire [31:0] rvfi_mem_addr, rvfi_mem_rdata, rvfi_mem_wdata, rvfi_frd_wdata;
 wire [4:0]  rvfi_rs1_addr, rvfi_rs2_addr, rvfi_rd_addr, rvfi_frd_addr, rvfi_fflags;
@@ -63,7 +63,9 @@ hornet_core #(.RESET_VECTOR(BASE), .MTVEC_RESET(BASE)) dut
      .rvfi_mem_addr(rvfi_mem_addr), .rvfi_mem_rmask(rvfi_mem_rmask), .rvfi_mem_wmask(rvfi_mem_wmask),
      .rvfi_mem_rdata(rvfi_mem_rdata), .rvfi_mem_wdata(rvfi_mem_wdata),
      .rvfi_frd_we(rvfi_frd_we), .rvfi_frd_addr(rvfi_frd_addr), .rvfi_frd_wdata(rvfi_frd_wdata),
-     .rvfi_fflags(rvfi_fflags), .rvfi_mcycle(rvfi_mcycle), .rvfi_minstret(rvfi_minstret));
+     .rvfi_fflags(rvfi_fflags),
+     .rvfi_csr_valid(), .rvfi_csr_addr(), .rvfi_csr_we(), .rvfi_csr_rdata(), .rvfi_csr_wdata(),
+     .rvfi_csr_mcycle(), .rvfi_csr_minstret());
 
 function automatic bit in_mem(input [31:0] a);
     return a >= BASE && a < BASE + MEM_WORDS * 4;

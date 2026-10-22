@@ -52,6 +52,8 @@ module mem_stage(input             clk_i,
                  output            fp_dirty_o,   //sets mstatus.FS to dirty
                  output     [4:0]  fflags_o,     //accumulated into fflags
                  input      [31:0] csr_rdata_i,
+                 input      [31:0] csr_wdata_i,
+                 input      [63:0] mcycle_i, minstret_i,
                  input      [31:0] trap_pc_i,    //handler address of this trap
                  input      [31:0] mepc_i,
                  output            redirect_o,
@@ -77,7 +79,10 @@ module mem_stage(input             clk_i,
                  output reg [3:0]  mem_be_o,
                  output reg [31:0] mem_wdata_o,
                  output reg        trap_q_o,
-                 output reg [4:0]  fflags_q_o);
+                 output reg [4:0]  fflags_q_o,
+                 output reg        csr_q_o, csr_we_q_o,
+                 output reg [31:0] csr_wdata_q_o,
+                 output reg [63:0] mcycle_q_o, minstret_q_o);
 
 //load/store unit
 wire [1:0] lo = result_i[1:0];
@@ -156,6 +161,9 @@ begin
         mem_wdata_o <= 32'b0;
         trap_q_o <= 1'b0;
         fflags_q_o <= 5'b0;
+        {csr_q_o, csr_we_q_o} <= 2'b0;
+        csr_wdata_q_o <= 32'b0;
+        {mcycle_q_o, minstret_q_o} <= 128'b0;
     end
     else if(wb_fault_i)
         valid_o <= 1'b0;
@@ -195,6 +203,11 @@ begin
         mem_wdata_o <= data_wdata_o;
         trap_q_o <= trap;
         fflags_q_o <= fflags_o;
+        csr_q_o <= csr_i && !trap;
+        csr_we_q_o <= csr_we_i;
+        csr_wdata_q_o <= csr_we_i ? csr_wdata_i : csr_rdata_i;
+        mcycle_q_o <= mcycle_i;
+        minstret_q_o <= minstret_i;
     end
 end
 

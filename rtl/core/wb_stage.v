@@ -26,6 +26,9 @@ module wb_stage(input             clk_i,
                 input      [31:0] mem_wdata_i,
                 input             trap_i,
                 input      [4:0]  fflags_i,
+                input             csr_i, csr_we_i,
+                input      [31:0] csr_wdata_i,
+                input      [63:0] mcycle_i, minstret_i,
 
                 input             data_rvalid_i,
                 input      [31:0] data_rdata_i,
@@ -70,7 +73,15 @@ module wb_stage(input             clk_i,
                 output            rvfi_frd_we,
                 output     [4:0]  rvfi_frd_addr,
                 output     [31:0] rvfi_frd_wdata,
-                output     [4:0]  rvfi_fflags);
+                output     [4:0]  rvfi_fflags,
+                //CSR access of a retired CSR instruction (riscv-formal CSR ports)
+                output            rvfi_csr_valid,
+                output     [11:0] rvfi_csr_addr,
+                output            rvfi_csr_we,
+                output     [31:0] rvfi_csr_rdata,
+                output     [31:0] rvfi_csr_wdata,
+                output     [63:0] rvfi_csr_mcycle,
+                output     [63:0] rvfi_csr_minstret);
 
 //a response that arrives while the pipeline is held is kept
 reg        resp_q;
@@ -144,6 +155,13 @@ assign rvfi_frd_we    = rf_we_o && rd_fp_i;
 assign rvfi_frd_addr  = rd_i;
 assign rvfi_frd_wdata = rf_data_o;
 assign rvfi_fflags    = fflags_i;
+assign rvfi_csr_valid    = csr_i;
+assign rvfi_csr_addr     = instr_i[31:20];
+assign rvfi_csr_we       = csr_we_i;
+assign rvfi_csr_rdata    = result_i;
+assign rvfi_csr_wdata    = csr_wdata_i;
+assign rvfi_csr_mcycle   = mcycle_i;
+assign rvfi_csr_minstret = minstret_i;
 
 always @(posedge clk_i or negedge rst_ni)
 begin

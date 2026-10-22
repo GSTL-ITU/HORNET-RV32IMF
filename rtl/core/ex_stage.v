@@ -42,6 +42,7 @@ module ex_stage(input             clk_i,
                 output            busy_o,   //a multi-cycle unit is not done
                 output            redirect_o,
                 output     [31:0] redirect_pc_o,
+                output     [31:0] redirect_pc4_o,
 
                 output reg        valid_o,
                 output reg [31:0] pc_o,
@@ -88,6 +89,10 @@ wire [31:0] target     = jalr_i ? {jalr_sum[31:1], 1'b0} : pc_i + imm_i;
 wire        taken      = jalr_i || (branch_i && alu_out[0]);
 wire        misaligned = taken && target[1];
 wire [31:0] pc4        = pc_i + 32'd4;
+//target + 4 for the fetch unit, in parallel with the target
+wire [31:0] jalr_sum4  = op_a + (imm_i + 32'd4);
+wire [31:0] target4    = jalr_i ? {jalr_sum4[31:1], 1'b0} : pc4 + imm_i;
+assign redirect_pc4_o  = target4;
 
 assign redirect_o    = valid_i && taken && !misaligned;
 assign redirect_pc_o = target;

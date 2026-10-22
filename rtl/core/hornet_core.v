@@ -55,13 +55,18 @@ module hornet_core #(parameter RESET_VECTOR = 32'h0000_0000,
  output [4:0]  rvfi_frd_addr,
  output [31:0] rvfi_frd_wdata,
  output [4:0]  rvfi_fflags,
- output [63:0] rvfi_mcycle,
- output [63:0] rvfi_minstret);
+ output        rvfi_csr_valid,
+ output [11:0] rvfi_csr_addr,
+ output        rvfi_csr_we,
+ output [31:0] rvfi_csr_rdata,
+ output [31:0] rvfi_csr_wdata,
+ output [63:0] rvfi_csr_mcycle,
+ output [63:0] rvfi_csr_minstret);
 
 //hazard unit
 wire        hold, if_stall, id_hold, id_bubble, id_flush, ex_flush;
 wire        redirect;
-wire [31:0] redirect_pc;
+wire [31:0] redirect_pc, redirect_pc4;
 wire [1:0]  fwd_a, fwd_b, fwd_c;
 
 //IF/ID
@@ -100,7 +105,7 @@ wire [31:0] de_trap_tval;
 
 //EX
 wire        ex_busy, ex_redirect;
-wire [31:0] ex_redirect_pc;
+wire [31:0] ex_redirect_pc, ex_redirect_pc4;
 
 //EX/MEM
 wire        em_valid;
@@ -147,6 +152,9 @@ wire [3:0]  mw_mem_be;
 wire [31:0] mw_mem_wdata;
 wire        mw_trap;
 wire [4:0]  mw_fflags;
+wire        mw_csr, mw_csr_we;
+wire [31:0] mw_csr_wdata;
+wire [63:0] mw_mcycle, mw_minstret;
 
 //WB
 wire        wb_pending, wb_wait, wb_fault;
@@ -157,7 +165,8 @@ wire [4:0]  wb_rd;
 wire [31:0] wb_data;
 
 //CSR unit
-wire [31:0] csr_rdata, trap_vector, mepc;
+wire [31:0] csr_rdata, csr_wdata, trap_vector, mepc;
+wire [63:0] mcycle, minstret;
 wire        irq_pending, fs_off;
 wire [4:0]  irq_cause;
 wire [2:0]  frm;
@@ -180,6 +189,7 @@ if_stage #(.RESET_VECTOR(RESET_VECTOR)) IF_STAGE
      .instr_err_i(instr_err_i),
      .redirect_i(redirect),
      .redirect_pc_i(redirect_pc),
+     .redirect_pc4_i(redirect_pc4),
      .stall_i(if_stall),
      .valid_o(if_valid),
      .pc_o(if_pc),
@@ -297,6 +307,7 @@ hazard_unit HAZARD_UNIT
      .ex_busy_i(ex_busy),
      .ex_redirect_i(ex_redirect),
      .ex_redirect_pc_i(ex_redirect_pc),
+     .ex_redirect_pc4_i(ex_redirect_pc4),
      .mem_valid_i(em_valid),
      .mem_rd_i(em_rd),
      .mem_rd_we_i(em_rd_we),
@@ -318,6 +329,7 @@ hazard_unit HAZARD_UNIT
      .ex_flush_o(ex_flush),
      .redirect_o(redirect),
      .redirect_pc_o(redirect_pc),
+     .redirect_pc4_o(redirect_pc4),
      .fwd_a_o(fwd_a),
      .fwd_b_o(fwd_b),
      .fwd_c_o(fwd_c));
@@ -377,6 +389,7 @@ ex_stage EX_STAGE
      .busy_o(ex_busy),
      .redirect_o(ex_redirect),
      .redirect_pc_o(ex_redirect_pc),
+     .redirect_pc4_o(ex_redirect_pc4),
      .valid_o(em_valid),
      .pc_o(em_pc),
      .instr_o(em_instr),
@@ -463,6 +476,9 @@ mem_stage MEM_STAGE
      .fp_dirty_o(mem_fp_dirty),
      .fflags_o(mem_fflags),
      .csr_rdata_i(csr_rdata),
+     .csr_wdata_i(csr_wdata),
+     .mcycle_i(mcycle),
+     .minstret_i(minstret),
      .trap_pc_i(trap_vector),
      .mepc_i(mepc),
      .redirect_o(mem_redirect),
@@ -493,7 +509,12 @@ mem_stage MEM_STAGE
      .mem_be_o(mw_mem_be),
      .mem_wdata_o(mw_mem_wdata),
      .trap_q_o(mw_trap),
-     .fflags_q_o(mw_fflags));
+     .fflags_q_o(mw_fflags),
+     .csr_q_o(mw_csr),
+     .csr_we_q_o(mw_csr_we),
+     .csr_wdata_q_o(mw_csr_wdata),
+     .mcycle_q_o(mw_mcycle),
+     .minstret_q_o(mw_minstret));
 
 csr_unit #(.MTVEC_RESET(MTVEC_RESET), .HART_ID(HART_ID)) CSR_UNIT
     (.clk_i(clk_i),
@@ -503,6 +524,7 @@ csr_unit #(.MTVEC_RESET(MTVEC_RESET), .HART_ID(HART_ID)) CSR_UNIT
      .csr_src_i(em_result),
      .csr_we_i(mem_csr_we),
      .csr_rdata_o(csr_rdata),
+     .csr_wdata_o(csr_wdata),
      .trap_i(trap_take),
      .trap_intr_i(trap_intr),
      .trap_cause_i(trap_cause),
@@ -524,8 +546,8 @@ csr_unit #(.MTVEC_RESET(MTVEC_RESET), .HART_ID(HART_ID)) CSR_UNIT
      .irq_cause_o(irq_cause),
      .fs_off_o(fs_off),
      .frm_o(frm),
-     .mcycle_o(rvfi_mcycle),
-     .minstret_o(rvfi_minstret));
+     .mcycle_o(mcycle),
+     .minstret_o(minstret));
 
 wb_stage WB_STAGE
     (.clk_i(clk_i),
@@ -557,6 +579,11 @@ wb_stage WB_STAGE
      .mem_wdata_i(mw_mem_wdata),
      .trap_i(mw_trap),
      .fflags_i(mw_fflags),
+     .csr_i(mw_csr),
+     .csr_we_i(mw_csr_we),
+     .csr_wdata_i(mw_csr_wdata),
+     .mcycle_i(mw_mcycle),
+     .minstret_i(mw_minstret),
      .data_rvalid_i(data_rvalid_i),
      .data_rdata_i(data_rdata_i),
      .data_err_i(data_err_i),
@@ -595,6 +622,13 @@ wb_stage WB_STAGE
      .rvfi_frd_we(rvfi_frd_we),
      .rvfi_frd_addr(rvfi_frd_addr),
      .rvfi_frd_wdata(rvfi_frd_wdata),
-     .rvfi_fflags(rvfi_fflags));
+     .rvfi_fflags(rvfi_fflags),
+     .rvfi_csr_valid(rvfi_csr_valid),
+     .rvfi_csr_addr(rvfi_csr_addr),
+     .rvfi_csr_we(rvfi_csr_we),
+     .rvfi_csr_rdata(rvfi_csr_rdata),
+     .rvfi_csr_wdata(rvfi_csr_wdata),
+     .rvfi_csr_mcycle(rvfi_csr_mcycle),
+     .rvfi_csr_minstret(rvfi_csr_minstret));
 
 endmodule

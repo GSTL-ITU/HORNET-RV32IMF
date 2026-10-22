@@ -21,6 +21,7 @@ module csr_unit #(parameter MTVEC_RESET = 32'h0000_0000,
  input      [31:0] csr_src_i,
  input             csr_we_i,   //commits a write this cycle
  output reg [31:0] csr_rdata_o,
+ output     [31:0] csr_wdata_o, //value written before legalisation (RVFI)
 
  //traps
  input             trap_i,     //take a trap this cycle
@@ -66,7 +67,7 @@ wire [31:0] misa    = 32'h4000_1120; //RV32IMF
 
 assign fs_off_o   = mstatus_fs_q == 2'b00;
 assign frm_o      = frm_q;
-assign mepc_o     = mepc_q;
+assign mepc_o     = {mepc_q[31:2], 2'b00}; //IALIGN = 32, also before the first write
 assign mcycle_o   = mcycle_q;
 assign minstret_o = minstret_q;
 
@@ -82,7 +83,7 @@ begin
         `CSR_MTVEC:         csr_rdata_o = mtvec_q;
         `CSR_MCOUNTINHIBIT: csr_rdata_o = {29'b0, mcountinhibit_q};
         `CSR_MSCRATCH:      csr_rdata_o = mscratch_q;
-        `CSR_MEPC:          csr_rdata_o = mepc_q;
+        `CSR_MEPC:          csr_rdata_o = {mepc_q[31:2], 2'b00};
         `CSR_MCAUSE:        csr_rdata_o = mcause_q;
         `CSR_MTVAL:         csr_rdata_o = mtval_q;
         `CSR_MIP:           csr_rdata_o = mip;
@@ -101,6 +102,8 @@ end
 wire [31:0] wdata = csr_op_i == 2'b01 ? csr_src_i
                   : csr_op_i == 2'b10 ? csr_rdata_o | csr_src_i
                   : csr_rdata_o & ~csr_src_i;
+
+assign csr_wdata_o = wdata;
 
 wire wr_mcycle    = csr_we_i && csr_addr_i == `CSR_MCYCLE;
 wire wr_mcycleh   = csr_we_i && csr_addr_i == `CSR_MCYCLEH;

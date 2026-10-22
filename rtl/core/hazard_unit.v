@@ -16,6 +16,7 @@ module hazard_unit(//ID
                    input             ex_busy_i,
                    input             ex_redirect_i,
                    input      [31:0] ex_redirect_pc_i,
+                   input      [31:0] ex_redirect_pc4_i,
                    //MEM
                    input             mem_valid_i,
                    input      [4:0]  mem_rd_i,
@@ -38,6 +39,7 @@ module hazard_unit(//ID
                    output            ex_flush_o,  //EX/MEM is cleared, EX is killed
                    output            redirect_o,
                    output reg [31:0] redirect_pc_o,
+                   output reg [31:0] redirect_pc4_o,
                    output     [1:0]  fwd_a_o, fwd_b_o, fwd_c_o);
 
 assign hold_o = mem_wait_i || wb_wait_i;
@@ -63,13 +65,25 @@ assign redirect_o = wb_fault_i || mem_redirect || ex_redirect || id_redirect;
 always @*
 begin
     if(wb_fault_i)
-        redirect_pc_o = wb_fault_pc_i;
+    begin
+        redirect_pc_o  = wb_fault_pc_i;
+        redirect_pc4_o = wb_fault_pc_i + 32'd4;
+    end
     else if(mem_redirect)
-        redirect_pc_o = mem_redirect_pc_i;
+    begin
+        redirect_pc_o  = mem_redirect_pc_i;
+        redirect_pc4_o = mem_redirect_pc_i + 32'd4;
+    end
     else if(ex_redirect)
-        redirect_pc_o = ex_redirect_pc_i;
+    begin
+        redirect_pc_o  = ex_redirect_pc_i;
+        redirect_pc4_o = ex_redirect_pc4_i;
+    end
     else
-        redirect_pc_o = id_jal_pc_i;
+    begin
+        redirect_pc_o  = id_jal_pc_i;
+        redirect_pc4_o = id_jal_pc_i + 32'd4;
+    end
 end
 
 //forwarding into EX, newest first
