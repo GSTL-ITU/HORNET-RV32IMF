@@ -40,7 +40,9 @@ additions (marked +):
   illegal/ecall/ebreak: ID, misaligned target: EX, misaligned access: MEM,
   access fault: WB), travel with the instruction and are taken at MEM
   (access faults at WB, which then also discards MEM).
-- Refetch after a committing write to `mstatus`, `mie`, `frm`, `fcsr`.
+- Refetch after a committing write to `mstatus`, `mie`, `frm`, `fcsr`, and
+  after FENCE.I (+: the data port can write IMEM, so Zifencei is implemented;
+  FENCE is a no-op).
 - A CSR result is a late producer (one stall for a direct consumer).
 - Interrupt priority: fast lines (31 down to 16), then MEI, MSI, MTI.
 

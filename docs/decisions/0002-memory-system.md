@@ -45,5 +45,8 @@ Option 2, no caches.
 - The linker script places `.data` at its run address in DMEM; the DMEM
   image is generated from the ELF, so no copy loop is needed at boot.
   `.bss` is cleared by `crt0`.
-- A program change needs a new bitstream, or `updatemem` on an existing
-  one (`make fpga-update`), or the UART loader once it exists.
+- A program change needs a new bitstream, or the UART bootloader
+  (`sw/bootloader`, top 4 KB of IMEM; the SoC parameter `BOOT_ADDR` moves the
+  reset vector there).
+- Large IMEMs spread the block RAMs over the device; the 320 KB IMEM of the
+  MLP example runs at 41.7 MHz instead of 50 MHz.

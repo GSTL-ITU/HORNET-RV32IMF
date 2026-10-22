@@ -25,6 +25,9 @@ long-latency units.
     registered between unpack, multiply, align/add, normalise and round.
   - Divide and square root: iterative, one quotient/root bit per cycle.
   - Conversions: registered result (two cycles).
+  - The result of every multi-cycle unit is registered once more in
+    `fpu_top` before it leaves EX, so rounding is not on the path into
+    EX/MEM (FMA 6 cycles, divide/square root up to 29, conversions 3).
 - **IEEE 754-2008 binary32 as the RISC-V F spec requires:** all five
   rounding modes, subnormal inputs and outputs (no flush to zero),
   canonical NaN `0x7FC00000`, tininess detected after rounding, the five
