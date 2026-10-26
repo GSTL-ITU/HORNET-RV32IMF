@@ -53,6 +53,15 @@ Variables a program's Makefile can set before `include`:
 the host (`USE_DOCKER=0` uses a local `riscv32-unknown-elf-gcc` with the
 `rv32imf_zicsr/ilp32f` multilib instead).
 
+Programs outside this repository include `common.mk` by its path
+(`include <HORNET>/sw/common.mk`). Docker then mounts `SRC_ROOT` (default: the
+program directory; set it to the root of the other repository when sources
+come from directories above) at its own path, and `make sim` runs the SoC
+testbench on the images there. `SIM_ARGS` passes plusargs to the testbench
+(`SIM_ARGS="+timeout=10000000000"` for long programs). The PQC benchmarks in
+[common-pqc-lib-riscv](https://github.com/GSTL-ITU/common-pqc-lib-riscv) are
+built this way.
+
 ## Memory map
 
 | Address | Size | |

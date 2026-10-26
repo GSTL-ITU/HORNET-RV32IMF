@@ -13,8 +13,9 @@ MEMLIM  ?= 8g
 ifdef HORNET_CONTAINER
 DOCKER_RUN  =
 else
+# EXTRA_MOUNT: a directory outside the repository (programs built elsewhere), mounted at its own path
 DOCKER_RUN  = $(DOCKER) run --rm -t --memory=$(MEMLIM) -u $(shell id -u):$(shell id -g) \
-              -v $(CURDIR):/work -w /work $(IMAGE)
+              -v $(CURDIR):/work $(if $(EXTRA_MOUNT),-v $(EXTRA_MOUNT):$(EXTRA_MOUNT)) -w /work $(IMAGE)
 endif
 
 BUILD   ?= build

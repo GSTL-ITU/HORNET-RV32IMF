@@ -6,7 +6,7 @@
 #
 # make            ELF, listing and the IMEM/DMEM images in build/ (also as imem.hex,
 #                 dmem.hex and mem.cfg for the FPGA flow)
-# make sim        run it on the SoC testbench (Verilator)
+# make sim        run it on the SoC testbench (Verilator), SIM_ARGS="+timeout=<cycles> ..."
 # make size       section sizes
 # make clean
 #
@@ -37,9 +37,17 @@ MABI  ?= ilp32f
 
 IMAGE      ?= hornet-dev:latest
 USE_DOCKER ?= $(if $(HORNET_CONTAINER),0,$(if $(shell command -v docker 2>/dev/null),1,0))
+# a program outside this repository: SRC_ROOT (default: its directory) is mounted at its own path
+OUT_OF_TREE := $(if $(filter $(HORNET_ROOT)/%,$(CURDIR)),,1)
+SRC_ROOT    ?= $(CURDIR)
 ifeq ($(USE_DOCKER),1)
+ifeq ($(OUT_OF_TREE),1)
+RUN = docker run --rm -u $(shell id -u):$(shell id -g) -v $(HORNET_ROOT):/work -v $(SRC_ROOT):$(SRC_ROOT) \
+      -w $(CURDIR) -e HORNET_CONTAINER=1 $(IMAGE)
+else
 RUN = docker run --rm -u $(shell id -u):$(shell id -g) -v $(HORNET_ROOT):/work \
       -w /work/$(patsubst $(HORNET_ROOT)/%,%,$(CURDIR)) -e HORNET_CONTAINER=1 $(IMAGE)
+endif
 SW  = /work/sw
 TOP = /work
 else
@@ -69,7 +77,14 @@ ELF = $(OUT)/$(PROG).elf
 
 all: $(OUT)/$(PROG).imem.hex
 
-$(ELF): $(SRCS) $(wildcard $(HORNET_SW)/drivers/*) $(wildcard $(HORNET_SW)/common/*) $(HORNET_SW)/common.mk Makefile
+# rebuild when the memory layout or the optimisation changes (the images depend on them)
+LAYOUT = $(OUT)/.layout-$(IMEM_SIZE)-$(DMEM_SIZE)-$(STACK_SIZE)-$(IMEM_ORIGIN)-$(DMEM_SKIP)$(subst $() ,,$(OPT))
+$(LAYOUT):
+	@mkdir -p $(OUT)
+	@rm -f $(OUT)/.layout-*
+	@touch $@
+
+$(ELF): $(SRCS) $(wildcard $(HORNET_SW)/drivers/*) $(wildcard $(HORNET_SW)/common/*) $(HORNET_SW)/common.mk Makefile $(LAYOUT)
 	@mkdir -p $(OUT)
 	$(RUN) $(RISCV_PREFIX)gcc $(CFLAGS) $(SRCS) $(DRIVERS) $(LDFLAGS) $(LIBS) -o $@
 
@@ -85,8 +100,10 @@ $(OUT)/$(PROG).imem.hex: $(ELF)
 size: $(ELF)
 	$(RUN) $(RISCV_PREFIX)size -A $<
 
+SIM_ARGS ?=
 sim: all
-	$(MAKE) -C $(HORNET_ROOT) soc-sim HEX=$(patsubst $(HORNET_ROOT)/%,%,$(abspath $(OUT)/$(PROG))) IMEM_SIZE=$(IMEM_SIZE) DMEM_SIZE=$(DMEM_SIZE)
+	$(MAKE) -C $(HORNET_ROOT) soc-sim HEX=$(if $(OUT_OF_TREE),$(abspath $(OUT)/$(PROG)),$(patsubst $(HORNET_ROOT)/%,%,$(abspath $(OUT)/$(PROG)))) \
+	    IMEM_SIZE=$(IMEM_SIZE) DMEM_SIZE=$(DMEM_SIZE) $(if $(OUT_OF_TREE),EXTRA_MOUNT=$(SRC_ROOT)) SOC_ARGS="$(SIM_ARGS)"
 
 clean:
 	rm -rf $(OUT)
