@@ -8,7 +8,7 @@ and FPGA checks are separate targets.
 | Target | What | Time |
 |---|---|---|
 | `make lint` | Verilator `-Wall` on the core and the SoC, as Verilog-2005 | seconds |
-| `make fpu-test` | FPU alone against TestFloat vectors | 1 min |
+| `make fpu-test` | FPU alone against TestFloat vectors and the directed vectors for the version 1 bugs | 3 min |
 | `make cosim` | riscv-tests rv32ui/um/uf/mi, every retired instruction compared with Spike | 1 min |
 | `make cosim-stall` | the same with 30 % random grant and response delays on both ports | 2 min |
 | `make random` | random RV32IMF programs vs. Spike, plain and with wait states | 3 min |
@@ -95,6 +95,41 @@ bit for bit.
 The version 1 column was measured with the same vectors through an adapter
 to its `fpu_arithmetic_top`; its classify, sign injection, min/max and
 compare modules pass and are kept in version 2.
+
+### Directed vectors for the version 1 bugs
+
+The RISCV-DV paper on version 1 (*Creating a Verification Environment Using
+RISCV-DV With Open and Closed Source Tools*, section IV) lists the FPU bugs
+that environment found: the dynamic rounding mode hardwired, wrong guard,
+round and sticky bits in RTZ, RDN and RUP (its example
+`0x4BB84A00 - 0x3F800001`, 24155136 - 1.0000001), rounding at overflow,
+underflow and in conversions near ±∞, and lost precision in division and
+square root of subnormals. `scripts/fpu_directed.py` (also run by
+`make fpu-test`) writes vectors for each of these classes in all five
+rounding modes. Expected values come from an exact rational model of
+binary32 in the script, which first checks itself against TestFloat
+(845 340 cases).
+
+| Group | Vectors | Failures |
+|---|---|---|
+| `paper`: equation (2), its mirrored forms, the same pattern at every exponent | 27 610 | 0 |
+| `grs`: addend at the guard, round and sticky positions, near cancellation | 199 997 | 0 |
+| `tiny`: subnormal and smallest-normal operands and results | 300 000 | 0 |
+| `ovf`: results around the largest finite value and the bottom of the subnormal range | 400 000 | 0 |
+| `div`: subnormal dividends and divisors | 401 365 | 0 |
+| `sqrt`: subnormal inputs (every exponent position, random and boundary mantissas) and normals | 300 460 | 0 |
+| `cvt`: FCVT.W[U].S around 0, ±2^31, 2^32, ±∞ and NaN | 8 210 | 0 |
+| **total** | **1 637 642** | **0** |
+
+The paper's example in every mode (version 1 returned `0x4BB84A00` where
+it should round down):
+
+| rm | RNE | RTZ | RDN | RUP | RMM |
+|---|---|---|---|---|---|
+| result (NX set) | `0x4BB849FF` | `0x4BB849FF` | `0x4BB849FF` | `0x4BB84A00` | `0x4BB849FF` |
+
+`sw/tests/fpu` runs the same subtraction on the SoC with the dynamic rounding
+mode (`frm` = 0 to 4) and with each static `rm` field.
 
 ## Formal (riscv-formal)
 

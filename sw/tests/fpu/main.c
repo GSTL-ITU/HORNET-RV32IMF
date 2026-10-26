@@ -49,6 +49,27 @@ int main(void)
     __asm__ volatile ("csrwi frm, 0" ::: "memory");
     expect("rne", b / a, 0x40155555);
 
+    // 0x4BB84A00 - 0x3F800001 (24155136 - 1.0000001), a version 1 rounding bug:
+    // 0x4BB849FF in every mode except RUP; dynamic (frm) and static rm field
+    static const uint32_t want_sub[5] = { 0x4bb849ff, 0x4bb849ff, 0x4bb849ff, 0x4bb84a00, 0x4bb849ff };
+    volatile fu big_ = { .u = 0x4bb84a00 }, one_ = { .u = 0x3f800001 };
+    for (uint32_t rm = 0; rm < 5; rm++) {
+        write_csr(frm, rm);
+        expect("sub dyn", big_.f - one_.f, want_sub[rm]);
+    }
+    write_csr(frm, 0);
+    float r;
+    __asm__ volatile ("fsub.s %0, %1, %2, rne" : "=f"(r) : "f"(big_.f), "f"(one_.f));
+    expect("sub rne", r, want_sub[0]);
+    __asm__ volatile ("fsub.s %0, %1, %2, rtz" : "=f"(r) : "f"(big_.f), "f"(one_.f));
+    expect("sub rtz", r, want_sub[1]);
+    __asm__ volatile ("fsub.s %0, %1, %2, rdn" : "=f"(r) : "f"(big_.f), "f"(one_.f));
+    expect("sub rdn", r, want_sub[2]);
+    __asm__ volatile ("fsub.s %0, %1, %2, rup" : "=f"(r) : "f"(big_.f), "f"(one_.f));
+    expect("sub rup", r, want_sub[3]);
+    __asm__ volatile ("fsub.s %0, %1, %2, rmm" : "=f"(r) : "f"(big_.f), "f"(one_.f));
+    expect("sub rmm", r, want_sub[4]);
+
     printf("fpu %s\n", errors ? "FAILED" : "ok");
     return errors;
 }

@@ -62,7 +62,7 @@ help:
 	@echo "make test           riscv-tests ($(SUITES)) on the core"
 	@echo "make cosim          The same, compared with Spike"
 	@echo "make cosim-stall    cosim with random memory wait states (MEM_STALL=$(MEM_STALL))"
-	@echo "make fpu-test       FPU alone against TestFloat vectors (all rounding modes)"
+	@echo "make fpu-test       FPU alone against TestFloat and directed vectors (all rounding modes)"
 	@echo "make random         RANDOM=$(RANDOM) random programs vs. Spike, plain and with wait states"
 	@echo "make formal         riscv-formal on the RVFI port (FORMAL_JOBS=$(FORMAL_JOBS), FORMAL_CHECKS=\"reg_ch0 ...\")"
 	@echo "make soc-sim HEX=<path/prog>  Run <prog>.imem.hex/.dmem.hex on the SoC testbench"
@@ -117,9 +117,16 @@ $(BUILD)/fpu/vectors.txt: scripts/fpu_vectors.py
 	@mkdir -p $(@D)
 	$(DOCKER_RUN) python3 scripts/fpu_vectors.py --out $@
 
-fpu-test: $(SIM_FPU) $(BUILD)/fpu/vectors.txt
+# directed cases for the version 1 bugs (rounding, GRS, subnormal divide/square root, conversions)
+$(BUILD)/fpu/directed.txt: scripts/fpu_directed.py
+	@mkdir -p $(@D)
+	$(DOCKER_RUN) python3 scripts/fpu_directed.py --out $@
+
+fpu-test: $(SIM_FPU) $(BUILD)/fpu/vectors.txt $(BUILD)/fpu/directed.txt
 	$(DOCKER_RUN) sh -c '$(SIM_FPU) +vectors=$(BUILD)/fpu/vectors.txt | tee $(BUILD)/fpu/fpu_test.log | grep -v "^- "'
 	@grep -q "^PASS" $(BUILD)/fpu/fpu_test.log
+	$(DOCKER_RUN) sh -c '$(SIM_FPU) +vectors=$(BUILD)/fpu/directed.txt | tee $(BUILD)/fpu/fpu_directed.log | grep -v "^- "'
+	@grep -q "^PASS" $(BUILD)/fpu/fpu_directed.log
 
 IMEM_SIZE ?= 0x10000
 DMEM_SIZE ?= 0x10000
