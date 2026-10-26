@@ -12,3 +12,6 @@ build/
 *.str
 .Xil/
 __pycache__/
+temp/
+!fpga/default/*.hex
+!fpga/ip/default/*.hex

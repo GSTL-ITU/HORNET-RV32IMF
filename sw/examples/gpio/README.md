@@ -9,7 +9,7 @@ This test is a classic "Blinky" application, acting as the "Hello World" of embe
 1. **Bare-Metal C Firmware:** A simple infinite loop that toggles a state variable and utilizes a blocking delay.
 2. **GPIO Driver:** Writes the state variable to the GPIO output register (`0x2002_0000`).
 3. **AXI4-Lite Interconnect:** Routes the write transaction to the GPIO slave module.
-4. **Physical Output:** The GPIO module drives `gpio_o[0]`, which `fpga/nexys4ddr/hornet_nexys4ddr.v` connects to LED0.
+4. **Physical Output:** The GPIO module drives `gpio_o[0]`, which `fpga/common/hornet_board.v` connects to LED0.
 
 ```text
 [ C Application (main.c) ] 
@@ -27,7 +27,7 @@ This test is a classic "Blinky" application, acting as the "Hello World" of embe
 ## 📦 Prerequisites
 
 * **Hardware:** Nexys-4-DDR (or equivalent FPGA development board).
-* **Constraints:** `fpga/nexys4ddr/nexys4ddr.xdc` maps `gpio_o[15:0]` to LED[15:0].
+* **Constraints:** `fpga/nexys4ddr/nexys4ddr.xdc` maps `gpio_o[15:0]` to LED[15:0] (Nexys Video: `gpio_o[7:0]`, `fpga/nexysvideo/nexysvideo.xdc`).
 * **Toolchain:** the `hornet-dev` Docker image (`make docker-build` in the repository root); `sw/common.mk` uses it automatically.
 
 ## 🚀 Execution Commands

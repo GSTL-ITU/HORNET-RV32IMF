@@ -1,23 +1,26 @@
-// HORNET on the Nexys 4 DDR (Artix-7 100T): 100 MHz oscillator to the core clock through an MMCM
-//   LED[15:0] = gpio_o[15:0], gpio_i = {JA, 3'b0, BTND, BTNR, BTNL, BTNU, BTNC, SW}
+// HORNET on a Digilent board (Nexys 4 DDR, Nexys Video, ...): 100 MHz oscillator to the core clock
+// through an MMCM. The ports follow the Nexys 4 DDR names; each board's .xdc maps them to its pins.
+//   LED[N_LED-1:0] = gpio_o[N_LED-1:0], gpio_i = {JA, 3'b0, BTND, BTNR, BTNL, BTNU, BTNC, SW (zero-extended to 16)}
 //   JA[7:0] = gpio[31:24] (direction from the GPIO DIR register)
 //   The external AXI4-Lite port answers DECERR here; hornet_soc is the block to use in a block design.
 `timescale 1ns/1ps
 
-module hornet_nexys4ddr #(parameter IMEM_SIZE = 65536,
-                          parameter DMEM_SIZE = 65536,
-                          parameter IMEM_INIT = "imem.hex",
-                          parameter DMEM_INIT = "dmem.hex",
-                          parameter CLK_DIV   = 20,        //1000 MHz VCO / CLK_DIV
-                          parameter BAUD      = 115200,
-                          parameter BOOT_ADDR = 32'h0000_0000)
+module hornet_board #(parameter IMEM_SIZE = 65536,
+                      parameter DMEM_SIZE = 65536,
+                      parameter IMEM_INIT = "imem.hex",
+                      parameter DMEM_INIT = "dmem.hex",
+                      parameter CLK_DIV   = 20,        //1000 MHz VCO / CLK_DIV
+                      parameter BAUD      = 115200,
+                      parameter BOOT_ADDR = 32'h0000_0000,
+                      parameter N_LED     = 16,        //at most 16
+                      parameter N_SW      = 16)        //at most 16
 (input         CLK100MHZ,
  input         CPU_RESETN,
  input         UART_TXD_IN,   //from the USB-UART bridge
  output        UART_RXD_OUT,  //to the USB-UART bridge
- input  [15:0] SW,
+ input  [N_SW-1:0]  SW,
  input         BTNC, BTNU, BTNL, BTNR, BTND,
- output [15:0] LED,
+ output [N_LED-1:0] LED,
  inout  [7:0]  JA);
 
 localparam CLK_FREQ = 1000000000 / CLK_DIV;
@@ -60,7 +63,8 @@ generate
     end
 endgenerate
 
-assign LED = gpio_o[15:0];
+assign LED = gpio_o[N_LED-1:0];
+wire [15:0] sw_in = SW; //zero-extended
 
 wire        awvalid, awready, wvalid, wready, bvalid, bready, arvalid, arready, rvalid, rready;
 wire [1:0]  bresp, rresp;
@@ -72,7 +76,7 @@ hornet_soc #(.IMEM_SIZE(IMEM_SIZE), .DMEM_SIZE(DMEM_SIZE), .IMEM_INIT(IMEM_INIT)
      .rst_ni(rst_n),
      .uart_rx_i(UART_TXD_IN),
      .uart_tx_o(UART_RXD_OUT),
-     .gpio_i({ja_in, 3'b0, BTND, BTNR, BTNL, BTNU, BTNC, SW}),
+     .gpio_i({ja_in, 3'b0, BTND, BTNR, BTNL, BTNU, BTNC, sw_in}),
      .gpio_o(gpio_o),
      .gpio_oe_o(gpio_oe),
      .meip_i(1'b0),

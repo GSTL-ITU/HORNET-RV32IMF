@@ -2,11 +2,14 @@
 """Loads an ELF into HORNET through the UART bootloader (sw/bootloader) and starts it.
 
   hornet_load.py --port /dev/ttyUSB1 sw/examples/gpio/build/gpio_test.elf [--term]
+  hornet_load.py --port /dev/ttyUSB1 prog.elf --term --until "result " --log out.txt --wait 120
   hornet_load.py --emit out.bin prog.elf      (the same byte stream, for the SoC testbench)
 
 Press the reset button (CPU_RESET) when asked: the bootloader listens for one
-second after reset. With --term the script stays connected and prints what
-the program sends.
+second after reset; the script keeps calling it for --wait seconds, so
+programming the bitstream over JTAG meanwhile works as well (unattended runs).
+With --term the script stays connected and prints what the program sends,
+with --until it stops after the line that contains the text.
 """
 import argparse
 import struct
@@ -43,6 +46,9 @@ def main():
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--emit", help="write the byte stream to a file instead of a serial port")
     ap.add_argument("--term", action="store_true", help="print the program's UART output afterwards")
+    ap.add_argument("--wait", type=float, default=30, help="seconds to wait for the bootloader")
+    ap.add_argument("--until", help="with --term: stop after a line that contains this text")
+    ap.add_argument("--log", help="with --term: also write the output to this file")
     a = ap.parse_args()
     entry, segs = segments(a.elf)
 
@@ -61,7 +67,7 @@ def main():
             ser.write(b"HB")
             if ser.read(1) == b"R":
                 break
-            if time.time() - t0 > 30:
+            if time.time() - t0 > a.wait:
                 sys.exit("no answer from the bootloader")
         ser.timeout = 2
         total = sum(len(d) for _, d in segs)
@@ -73,14 +79,26 @@ def main():
         print("loaded %d bytes, started at 0x%08x" % (total, entry))
         if a.term:
             ser.timeout = 0.1
+            log = open(a.log, "w") if a.log else None
+            line = ""
             try:
                 while True:
-                    d = ser.read(256)
-                    if d:
-                        sys.stdout.write(d.decode(errors="replace"))
-                        sys.stdout.flush()
+                    d = ser.read(256).decode(errors="replace")
+                    if not d:
+                        continue
+                    sys.stdout.write(d)
+                    sys.stdout.flush()
+                    if log:
+                        log.write(d)
+                        log.flush()
+                    line += d
+                    *done, line = line.split("\n")
+                    if a.until and any(a.until in l for l in done):
+                        break
             except KeyboardInterrupt:
                 pass
+            if log:
+                log.close()
 
 
 if __name__ == "__main__":

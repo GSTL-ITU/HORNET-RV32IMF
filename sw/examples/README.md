@@ -26,10 +26,10 @@ make              # build/gpio_test.elf, .dump, .imem.hex, .dmem.hex
 make sim          # run it on the SoC testbench (programs that end with exit())
 ```
 
-On the board (Nexys 4 DDR, Vivado on the host), from the repository root:
+On the board (Nexys 4 DDR; `BOARD=nexysvideo` for the Nexys Video; Vivado on the host), from the repository root:
 
 ```bash
-make fpga-build FPGA_PROG=sw/examples/gpio      # bitstream in build/fpga/gpio/
+make fpga-build FPGA_PROG=sw/examples/gpio      # bitstream in build/fpga/nexys4ddr/gpio/
 make fpga-program FPGA_PROG=sw/examples/gpio    # JTAG
 ```
 

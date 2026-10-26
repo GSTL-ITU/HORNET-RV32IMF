@@ -28,7 +28,7 @@ This test leverages a classic Bubble Sort algorithm applied to an array of singl
 ## 📦 Prerequisites
 
 * **Hardware:** Nexys-4-DDR (or equivalent FPGA development board).
-* **Constraints:** `fpga/nexys4ddr/nexys4ddr.xdc` maps `gpio_o[15:0]` to LED[15:0].
+* **Constraints:** `fpga/nexys4ddr/nexys4ddr.xdc` maps `gpio_o[15:0]` to LED[15:0] (Nexys Video: `gpio_o[7:0]`, `fpga/nexysvideo/nexysvideo.xdc`).
 * **Toolchain:** the `hornet-dev` Docker image (`make docker-build` in the repository root); `sw/common.mk` uses it automatically.
 
 ## 🚀 Execution Commands

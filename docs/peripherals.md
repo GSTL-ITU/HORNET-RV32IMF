@@ -41,7 +41,7 @@ handler reads DATA until the FIFO is empty or reads one byte per interrupt.
 
 ## GPIO (`0x2002_0000`, `rtl/soc/axil_gpio.v`)
 
-32 bits; on the Nexys 4 DDR top: outputs 15:0 are the LEDs, inputs 15:0 the
+32 bits; on the board top (Nexys 4 DDR; the Nexys Video has 8 of each): outputs 15:0 are the LEDs, inputs 15:0 the
 switches, inputs 20:16 the buttons C, U, L, R, D, and bits 31:24 Pmod JA.
 
 | Offset | Register | Access | |

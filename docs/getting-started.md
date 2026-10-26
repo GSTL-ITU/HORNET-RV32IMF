@@ -1,20 +1,22 @@
 # Getting started
 
 There are two ways to work with HORNET. **Option A** needs only Vivado and
-puts a working system on the Nexys 4 DDR. **Option B** adds the Docker image
+puts a working system on the Nexys 4 DDR or the Nexys Video. **Option B** adds the Docker image
 with the compiler, the simulators and the verification tools, and drives
 everything with `make`.
 
 ## Option A: Vivado only
 
 Requirements: Vivado 2025.2 (any recent version should work), a Nexys 4 DDR
-(Artix-7 100T) and its USB cable.
+(Artix-7 100T) or a Nexys Video (Artix-7 200T) and its USB cables (on the
+Nexys Video the UART has its own micro-USB port).
 
 1. Start Vivado. **Tools → Run Tcl Script…** and select
-   `fpga/nexys4ddr/create_project.tcl` from this repository.
-   The script creates `build/vivado/hornet.xpr` and opens it. It contains all
+   `fpga/nexys4ddr/create_project.tcl` (Nexys Video: `fpga/nexysvideo/create_project.tcl`)
+   from this repository.
+   The script creates `build/vivado-<board>/hornet.xpr` and opens it. It contains all
    RTL, the constraints and the default program images
-   (`fpga/nexys4ddr/default/`: UART bootloader + LED blink).
+   (`fpga/default/`: UART bootloader + LED blink).
 2. **Generate Bitstream** (about 5 minutes).
 3. **Open Hardware Manager → Open Target → Auto Connect → Program Device.**
    LED0 blinks.
@@ -33,7 +35,7 @@ Compiling programs needs the RISC-V GCC: use Option B for that, or any
 (`make USE_DOCKER=0` in a program directory).
 
 To put a program into the bitstream instead (no bootloader needed), copy its
-`build/imem.hex` and `build/dmem.hex` over the ones in `build/vivado/` and
+`build/imem.hex` and `build/dmem.hex` over the ones in `build/vivado-<board>/` and
 generate the bitstream again.
 
 **Block design.** **Tools → Run Tcl Script…** → `fpga/ip/bd_demo.tcl`
@@ -75,10 +77,11 @@ terminal. A program ends the simulation by returning from `main`
 ### Build a bitstream and program the board
 
 ```bash
-make fpga-build FPGA_PROG=sw/examples/gpio                 # build/fpga/gpio/hornet_nexys4ddr.bit
+make fpga-build FPGA_PROG=sw/examples/gpio                 # build/fpga/nexys4ddr/gpio/hornet_nexys4ddr.bit
 make fpga-program FPGA_PROG=sw/examples/gpio               # over JTAG
 make fpga-build FPGA_PROG=sw/examples/gpio BOOTLOADER=1    # the same with the UART bootloader
-make fpga-project FPGA_PROG=sw/examples/gpio               # GUI project in build/fpga/project
+make fpga-project FPGA_PROG=sw/examples/gpio               # GUI project in build/fpga/nexys4ddr/project
+make fpga-build BOARD=nexysvideo FPGA_PROG=sw/examples/gpio  # the same for the Nexys Video
 ```
 
 `make fpga-build` prints the timing result

@@ -98,8 +98,9 @@ Block diagram, pipeline and memory map: [docs/architecture.md](docs/architecture
 
 ### Option A: Vivado GUI only (no Docker, no Make)
 
-1. Open Vivado 2025.2 → **Tools → Run Tcl Script** → `fpga/nexys4ddr/create_project.tcl`.
-   This creates `build/vivado/hornet.xpr` with the default program (UART
+1. Open Vivado 2025.2 → **Tools → Run Tcl Script** → `fpga/nexys4ddr/create_project.tcl`
+   (Nexys Video: `fpga/nexysvideo/create_project.tcl`).
+   This creates `build/vivado-<board>/hornet.xpr` with the default program (UART
    bootloader and an LED blink).
 2. **Generate Bitstream**, then **Open Hardware Manager → Program Device**.
 3. LED0 blinks. Load your own programs over the USB-UART with the bootloader:
@@ -132,7 +133,7 @@ GUI: [docs/getting-started.md](docs/getting-started.md).
 | [`rtl/core`](rtl/core) | the core: stages, decoder, register files, hazard unit, CSR unit, multiplier, divider |
 | [`rtl/fpu`](rtl/fpu) | the FPU: FMA, divide/square root, conversions, rounding, compare/min-max/classify |
 | [`rtl/soc`](rtl/soc) | SoC: memories, data router, AXI4-Lite bridge and interconnect, timer, UART, GPIO |
-| [`fpga`](fpga) | Nexys 4 DDR top, constraints, Vivado scripts (batch, GUI project, IP, block design) |
+| [`fpga`](fpga) | board top, Nexys 4 DDR and Nexys Video constraints, Vivado scripts (batch, GUI project, IP, block design) |
 | [`sw`](sw) | startup code, linker script, drivers, build rules, bootloader, tests, examples |
 | [`tb`](tb), [`verif`](verif), [`scripts`](scripts) | testbenches, riscv-tests/riscv-formal, test and build scripts |
 | [`docker`](docker) | the tool image |
