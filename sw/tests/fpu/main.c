@@ -49,7 +49,7 @@ int main(void)
     __asm__ volatile ("csrwi frm, 0" ::: "memory");
     expect("rne", b / a, 0x40155555);
 
-    // 0x4BB84A00 - 0x3F800001 (24155136 - 1.0000001), a version 1 rounding bug:
+    // 0x4BB84A00 - 0x3F800001 (24155136 - 1.0000001), the rounding bug of the RISCV-DV paper:
     // 0x4BB849FF in every mode except RUP; dynamic (frm) and static rm field
     static const uint32_t want_sub[5] = { 0x4bb849ff, 0x4bb849ff, 0x4bb849ff, 0x4bb84a00, 0x4bb849ff };
     volatile fu big_ = { .u = 0x4bb84a00 }, one_ = { .u = 0x3f800001 };

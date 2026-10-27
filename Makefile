@@ -120,7 +120,7 @@ $(BUILD)/fpu/vectors.txt: scripts/fpu_vectors.py
 	@mkdir -p $(@D)
 	$(DOCKER_RUN) python3 scripts/fpu_vectors.py --out $@
 
-# directed cases for the version 1 bugs (rounding, GRS, subnormal divide/square root, conversions)
+# directed cases for the FPU bugs of the RISCV-DV paper (rounding, GRS, subnormal divide/square root, conversions)
 $(BUILD)/fpu/directed.txt: scripts/fpu_directed.py
 	@mkdir -p $(@D)
 	$(DOCKER_RUN) python3 scripts/fpu_directed.py --out $@

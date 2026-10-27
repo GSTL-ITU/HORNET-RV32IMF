@@ -2,7 +2,7 @@
 """Directed FPU vectors for tb/fpu_tb.sv (same format as fpu_vectors.py)
    <op> <rm> <a> <b> <c> <result> <flags>
 
-The cases target the bug classes found in version 1 with RISCV-DV
+The cases target the bug classes the RISCV-DV environment found in the FPU
 (Creating a Verification Environment Using RISCV-DV..., section IV):
 
   paper    0x4BB84A00 - 0x3F800001 (equation 2) and its mirrored forms
