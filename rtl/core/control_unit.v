@@ -4,7 +4,9 @@ This module is responsible for generating the necessary control signals for the 
 */
 `include "hornet_defs.vh"
 
-module control_unit(input [31:0] instr_i,
+module control_unit #(parameter RV_M = 1,  //M extension: multiply and divide
+                      parameter RV_F = 1)  //F extension: single-precision floating point
+                    (input [31:0] instr_i,
                     input        fs_off_i, //mstatus.FS == Off: F instructions are illegal
                     input  [2:0] frm_i,    //dynamic rounding mode
 
@@ -34,6 +36,9 @@ wire [4:0] rs1    = instr_i[19:15];
 wire [4:0] rs2    = instr_i[24:20];
 wire [11:0] csr   = instr_i[31:20];
 
+//F instructions and CSRs exist only with the F extension and mstatus.FS != Off
+wire f_ok = RV_F != 0 && !fs_off_i;
+
 //rounding mode: static field or frm
 wire       rm_dyn = funct3 == 3'b111;
 wire [2:0] rm     = rm_dyn ? frm_i : funct3;
@@ -43,7 +48,7 @@ reg csr_exists;
 always @*
 begin
     casez(csr)
-        `CSR_FFLAGS, `CSR_FRM, `CSR_FCSR: csr_exists = !fs_off_i;
+        `CSR_FFLAGS, `CSR_FRM, `CSR_FCSR: csr_exists = f_ok;
         `CSR_MSTATUS, `CSR_MISA, `CSR_MIE, `CSR_MTVEC, `CSR_MSTATUSH,
         `CSR_MCOUNTINHIBIT, `CSR_MSCRATCH, `CSR_MEPC, `CSR_MCAUSE,
         `CSR_MTVAL, `CSR_MIP: csr_exists = 1'b1;
@@ -194,7 +199,7 @@ begin
             rd_we_o = 1'b1;
             if(funct7 == 7'b0000001) //M extension
             begin
-                legal = 1'b1;
+                legal = RV_M != 0;
                 mul_o = !funct3[2];
                 div_o = funct3[2];
                 res_sel_o = `RES_DIV;
@@ -247,7 +252,7 @@ begin
 
         `OP_LOAD_FP:
         begin
-            legal = funct3 == 3'b010 && !fs_off_i;
+            legal = funct3 == 3'b010 && f_ok;
             rs1_used_o = 1'b1;
             rd_we_o = 1'b1;
             rd_fp_o = 1'b1;
@@ -257,7 +262,7 @@ begin
 
         `OP_STORE_FP:
         begin
-            legal = funct3 == 3'b010 && !fs_off_i;
+            legal = funct3 == 3'b010 && f_ok;
             rs1_used_o = 1'b1;
             rs2_used_o = 1'b1;
             rs2_fp_o = 1'b1;
@@ -267,7 +272,7 @@ begin
 
         `OP_MADD, `OP_MSUB, `OP_NMSUB, `OP_NMADD:
         begin
-            legal = funct7[1:0] == 2'b00 && rm_ok && !fs_off_i;
+            legal = funct7[1:0] == 2'b00 && rm_ok && f_ok;
             rs1_used_o = 1'b1;
             rs1_fp_o = 1'b1;
             rs2_used_o = 1'b1;
@@ -359,7 +364,7 @@ begin
                 end
                 default: legal = 1'b0;
             endcase
-            legal = legal && !fs_off_i;
+            legal = legal && f_ok;
         end
 
         default: legal = 1'b0;

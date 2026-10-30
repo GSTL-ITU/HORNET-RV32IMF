@@ -1,7 +1,8 @@
 // ID: decode, operand read, JAL redirect, interrupt tagging and the ID/EX register
 `include "hornet_defs.vh"
 
-module id_stage(input             clk_i,
+module id_stage #(parameter RV_M = 1, parameter RV_F = 1)
+               (input             clk_i,
                 input             rst_ni,
 
                 input             valid_i,
@@ -69,7 +70,7 @@ wire [2:0]  fpu_rm;
 wire        csr, csr_we, csr_imm;
 wire [31:0] imm;
 
-control_unit CTRL_UNIT(.instr_i(instr_i),
+control_unit #(.RV_M(RV_M), .RV_F(RV_F)) CTRL_UNIT(.instr_i(instr_i),
                        .fs_off_i(fs_off_i),
                        .frm_i(frm_i),
                        .illegal_o(illegal),

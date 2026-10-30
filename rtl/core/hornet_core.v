@@ -1,7 +1,13 @@
-// HORNET RV32IMF core: five-stage pipeline with request/grant/valid memory ports
+// HORNET RV32I[M][F] core: five-stage pipeline with request/grant/valid memory ports
+//   RV_M = 1: M extension (multiplier in MEM, divider in EX)
+//   RV_F = 1: F extension (FPU in EX, float register file, fflags/frm/fcsr, mstatus.FS)
+// Without an extension its instructions raise illegal-instruction exceptions and misa
+// does not report it; the hardware is not built.
 module hornet_core #(parameter RESET_VECTOR = 32'h0000_0000,
                      parameter MTVEC_RESET  = 32'h0000_0000,
-                     parameter HART_ID      = 32'd0)
+                     parameter HART_ID      = 32'd0,
+                     parameter RV_M         = 1,
+                     parameter RV_F         = 1)
 (input         clk_i,
  input         rst_ni,
 
@@ -196,7 +202,7 @@ if_stage #(.RESET_VECTOR(RESET_VECTOR)) IF_STAGE
      .instr_o(if_instr),
      .fault_o(if_fault));
 
-regfile REGFILE
+regfile #(.RV_F(RV_F)) REGFILE
     (.clk_i(clk_i),
      .rs1_i(rf_rs1),
      .rs2_i(rf_rs2),
@@ -211,7 +217,7 @@ regfile REGFILE
      .rd_i(wb_rd),
      .rd_data_i(wb_data));
 
-id_stage ID_STAGE
+id_stage #(.RV_M(RV_M), .RV_F(RV_F)) ID_STAGE
     (.clk_i(clk_i),
      .rst_ni(rst_ni),
      .valid_i(if_valid),
@@ -334,7 +340,7 @@ hazard_unit HAZARD_UNIT
      .fwd_b_o(fwd_b),
      .fwd_c_o(fwd_c));
 
-ex_stage EX_STAGE
+ex_stage #(.RV_M(RV_M), .RV_F(RV_F)) EX_STAGE
     (.clk_i(clk_i),
      .rst_ni(rst_ni),
      .valid_i(de_valid),
@@ -422,7 +428,7 @@ ex_stage EX_STAGE
      .trap_cause_o(em_trap_cause),
      .trap_tval_o(em_trap_tval));
 
-mem_stage MEM_STAGE
+mem_stage #(.RV_M(RV_M)) MEM_STAGE
     (.clk_i(clk_i),
      .rst_ni(rst_ni),
      .valid_i(em_valid),
@@ -516,7 +522,7 @@ mem_stage MEM_STAGE
      .mcycle_q_o(mw_mcycle),
      .minstret_q_o(mw_minstret));
 
-csr_unit #(.MTVEC_RESET(MTVEC_RESET), .HART_ID(HART_ID)) CSR_UNIT
+csr_unit #(.MTVEC_RESET(MTVEC_RESET), .HART_ID(HART_ID), .RV_M(RV_M), .RV_F(RV_F)) CSR_UNIT
     (.clk_i(clk_i),
      .rst_ni(rst_ni),
      .csr_addr_i(em_instr[31:20]),

@@ -5,7 +5,8 @@
 #   Spike          riscv-isa-sim, pinned commit (co-simulation reference)
 #   TestFloat 3e   with SoftFloat 3e (FPU reference vectors)
 #   OSS CAD Suite  Yosys, SymbiYosys, SMT solvers (riscv-formal); last in PATH
-#   Python 3       packages in requirements.txt
+#   Python 3       packages in requirements.txt (also RISCV-DV pygen and Sphinx)
+#   LaTeX          for the PDF manual (make docs)
 #
 # Vivado is not in the image; it runs on the host.
 
@@ -61,6 +62,16 @@ COPY requirements.txt /tmp/requirements.txt
 RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt
+
+# RISCV-DV pygen (Python instruction generator) and the documentation tools
+COPY requirements-dv.txt requirements-docs.txt /tmp/
+RUN /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements-dv.txt -r /tmp/requirements-docs.txt \
+    && rm /tmp/requirements-dv.txt /tmp/requirements-docs.txt
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended \
+        tex-gyre fonts-freefont-otf texlive-xetex \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PATH=/opt/venv/bin:/opt/riscv/bin:/opt/verilator/bin:/opt/spike/bin:/opt/testfloat/bin:${PATH}:/opt/oss-cad-suite/bin \
     HORNET_CONTAINER=1

@@ -25,12 +25,14 @@ if {![file exists $board_dir/board.tcl]} {
 source $board_dir/board.tcl
 set rtl [file normalize $fpga_dir/../rtl]
 
-# Program arguments: <dir> <imem.hex> <dmem.hex> [IMEM_SIZE DMEM_SIZE CLK_DIV BOOT_ADDR];
-# without them the default images (bootloader + LED blink) and <default dir>
+# Program arguments: <dir> <imem.hex> <dmem.hex> [IMEM_SIZE DMEM_SIZE CLK_DIV BOOT_ADDR RV_M RV_F];
+# without them the default images (bootloader + LED blink, RV32IMF) and <default dir>.
+# RV_M/RV_F select the ISA (rv32i: 0 0, rv32im: 1 0, rv32imf: 1 1); the
+# program images must be built for the same ISA (make ... ISA=rv32im).
 proc board_args {default_dir} {
-    global argv fpga_dir out imem dmem imem_size dmem_size clk_div boot_addr
+    global argv fpga_dir out imem dmem imem_size dmem_size clk_div boot_addr rv_m rv_f
     if {![info exists argv] || [llength $argv] == 0} {
-        set argv [list $default_dir $fpga_dir/default/imem.hex $fpga_dir/default/dmem.hex 65536 65536 20 0xF000]
+        set argv [list $default_dir $fpga_dir/default/imem.hex $fpga_dir/default/dmem.hex 65536 65536 20 0xF000 1 1]
     }
     set out       [file normalize [lindex $argv 0]]
     set imem      [file normalize [lindex $argv 1]]
@@ -39,10 +41,18 @@ proc board_args {default_dir} {
     set dmem_size [expr {[llength $argv] > 4 ? [lindex $argv 4] : 65536}]
     set clk_div   [expr {[llength $argv] > 5 ? [lindex $argv 5] : 20}]
     set boot_addr [expr {[llength $argv] > 6 ? [lindex $argv 6] : 0}]
+    set rv_m      [expr {[llength $argv] > 7 ? [lindex $argv 7] : 1}]
+    set rv_f      [expr {[llength $argv] > 8 ? [lindex $argv 8] : 1}]
+}
+
+# ISA name of the configuration, e.g. RV32IMF
+proc board_isa {} {
+    global rv_m rv_f
+    return "RV32I[expr {$rv_m ? "M" : ""}][expr {$rv_f ? "F" : ""}]"
 }
 
 proc board_generic_list {} {
-    global imem_size dmem_size clk_div boot_addr board_generics
+    global imem_size dmem_size clk_div boot_addr rv_m rv_f board_generics
     return [concat [list IMEM_SIZE=$imem_size DMEM_SIZE=$dmem_size CLK_DIV=$clk_div BOOT_ADDR=$boot_addr \
-                         IMEM_INIT=imem.hex DMEM_INIT=dmem.hex] $board_generics]
+                         RV_M=$rv_m RV_F=$rv_f IMEM_INIT=imem.hex DMEM_INIT=dmem.hex] $board_generics]
 }

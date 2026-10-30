@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""Random RV32IMF programs for co-simulation against Spike.
+"""Random RV32I[M][F] programs for co-simulation against Spike.
 
-  gen_random.py --out build/random --count 200 --seed 1 [--kind all|int|fp] [--length 400]
+  gen_random.py --out build/random --count 200 --seed 1 [--kind all|int|fp] [--length 400] [--isa rv32imf]
+
+--isa is the core configuration. Instructions of an extension the core does
+not have are still generated, at a tenth of their normal rate: they must raise
+illegal-instruction exceptions on the core as on Spike (run with the same
+--isa). The programs are always assembled for rv32imf.
 
 Registers x28-x31 are reserved: x29 points to the data buffer, x30 and x31
 belong to the trap handler (it skips the trapping instruction and reads
@@ -38,9 +43,12 @@ F_FMA = ["fmadd.s", "fmsub.s", "fnmsub.s", "fnmadd.s"]
 
 
 class Gen:
-    def __init__(self, rnd, kind):
+    def __init__(self, rnd, kind, isa="rv32imf"):
         self.r = rnd
         self.kind = kind
+        ext = isa[len("rv32i"):]
+        self.has_m = "m" in ext
+        self.has_f = "f" in ext
         self.recent_x = []
         self.recent_f = []
         self.lines = []
@@ -83,7 +91,10 @@ class Gen:
         elif c < 0.55:
             self.emit("%s x%d, 0x%x" % (self.r.choice(["lui", "auipc"]), self.xdst(), self.r.randint(0, 0xfffff)))
         elif c < 0.7:
-            self.emit("%s x%d, x%d, x%d" % (self.r.choice(MULDIV), self.xdst(), self.xsrc(), self.xsrc()))
+            if self.has_m or self.r.random() < 0.1:
+                self.emit("%s x%d, x%d, x%d" % (self.r.choice(MULDIV), self.xdst(), self.xsrc(), self.xsrc()))
+            else:
+                self.emit("%s x%d, x%d, x%d" % (self.r.choice(ALU_RR), self.xdst(), self.xsrc(), self.xsrc()))
         elif c < 0.75:
             self.emit("li x%d, %d" % (self.xdst(), self.r.choice(SPECIAL_X)))
         else:
@@ -194,6 +205,9 @@ class Gen:
             else:
                 weights = [0.45, 0.3, 0.1, 0.1, 0.05]
             acc = 0
+            if not self.has_f:
+                # F instructions trap: a tenth of the usual share (the CSR mix keeps its F CSRs)
+                weights = [weights[0] + 0.9 * weights[1], 0.1 * weights[1]] + weights[2:]
             for w, f in zip(weights, [self.int_op, self.fp_op, self.csr_op, None, self.special_op]):
                 acc += w
                 if c < acc:
@@ -240,8 +254,8 @@ EPILOGUE = """
 """
 
 
-def write_program(path, rnd, kind, length):
-    g = Gen(rnd, kind)
+def write_program(path, rnd, kind, length, isa="rv32imf"):
+    g = Gen(rnd, kind, isa)
     init = []
     for r in XREGS:
         init.append("    li x%d, 0x%x" % (r, rnd.getrandbits(32) if rnd.random() < 0.7 else rnd.choice(SPECIAL_X) & 0xffffffff))
@@ -264,13 +278,15 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--kind", default="all", choices=["all", "int", "fp"])
     ap.add_argument("--length", type=int, default=400)
+    ap.add_argument("--isa", default="rv32imf", choices=["rv32i", "rv32im", "rv32imf"])
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     for i in range(a.count):
         rnd = random.Random(a.seed * 100003 + i)
-        kind = a.kind if a.kind != "all" else ["all", "int", "fp"][i % 3]
+        kinds = ["all", "int", "fp"] if "f" in a.isa[len("rv32i"):] else ["all", "int"]
+        kind = a.kind if a.kind != "all" else kinds[i % len(kinds)]
         name = os.path.join(a.out, "rand_%d_%04d" % (a.seed, i))
-        write_program(name + ".S", rnd, kind, a.length)
+        write_program(name + ".S", rnd, kind, a.length, a.isa)
         r = subprocess.run(["riscv32-unknown-elf-gcc", "-march=rv32imf_zicsr_zifencei", "-mabi=ilp32",
                             "-static", "-nostdlib", "-nostartfiles",
                             "-T", os.path.join(TESTS, "env", "p", "link.ld"), name + ".S", "-o", name + ".elf"],

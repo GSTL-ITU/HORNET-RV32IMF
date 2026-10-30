@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Build and run programs on the HORNET core testbench, optionally against Spike.
 
-  run_tests.py --sim build/sim/core/Vhornet_tb --suites ui,um,uf,mi --spike
-  run_tests.py --sim ... --random 200 --seed 1 --spike --mem-stall 30
+  run_tests.py --sim build/sim/core-rv32imf/Vhornet_tb --isa rv32imf --spike
+  run_tests.py --sim ... --isa rv32im --random 200 --seed 1 --spike --mem-stall 30
+
+--isa is the core configuration (rv32i, rv32im, rv32imf). It selects
+the riscv-tests suites (ui and mi always, um with M, uf with F), the compiler
+-march and Spike's --isa, so instructions of a missing extension trap in both.
 
 Every test gets <workdir>/<suite>/<name>.{elf,hex,dump,rtl.log,spike.log,sim.log}.
 The summary is printed and written to <workdir>/summary.txt.
@@ -10,6 +14,7 @@ The summary is printed and written to <workdir>/summary.txt.
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -19,8 +24,21 @@ TESTS = os.path.join(ROOT, "verif", "riscv-tests")
 BASE = 0x80000000
 MEM_SIZE = 0x400000
 
-MARCH = "rv32imf_zicsr_zifencei"
-SPIKE_ISA = "rv32imf_zicsr_zifencei_zicntr"
+ISAS = ("rv32i", "rv32im", "rv32imf")
+
+
+def march(isa):
+    return isa + "_zicsr_zifencei"
+
+
+def spike_isa(isa):
+    return isa + "_zicsr_zifencei_zicntr"
+
+
+def default_suites(isa):
+    ext = isa[len("rv32i"):]
+    return ",".join(["ui"] + (["um"] if "m" in ext else []) + (["uf"] if "f" in ext else []) + ["mi"])
+
 SPIKE_ARGS = ["--priv=m", "--pmpregions=0", "--triggers=0", "--wfi-as-nop"]
 
 # reasons are printed in the summary
@@ -39,10 +57,10 @@ def run(cmd, **kw):
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, **kw)
 
 
-def build_test(src, out_dir, name):
+def build_test(src, out_dir, name, isa):
     elf = os.path.join(out_dir, name + ".elf")
     env = os.path.join(TESTS, "env", "p")
-    r = run([CC, "-march=" + MARCH, "-mabi=ilp32", "-static", "-mcmodel=medany",
+    r = run([CC, "-march=" + march(isa), "-mabi=ilp32", "-static", "-mcmodel=medany",
              "-fvisibility=hidden", "-nostdlib", "-nostartfiles",
              "-I" + env, "-I" + os.path.join(TESTS, "isa", "macros", "scalar"),
              "-T" + os.path.join(env, "link.ld"), src, "-o", elf])
@@ -62,8 +80,11 @@ def prepare(elf):
     return int(m.group(1), 16) if m else BASE + 0x1000
 
 
-def parse_line(fields):
-    """[(kind, a, b)] from the register/memory fields of one trace line."""
+def parse_line(fields, fp_flags=True):
+    """[(kind, a, b)] from the register/memory fields of one trace line.
+
+    fp_flags: keep c1_fflags (the accumulated flags after an FP instruction that
+    raised one); off for CSR instructions, whose CSR writes are not compared."""
     out = []
     i = 0
     while i < len(fields):
@@ -78,11 +99,14 @@ def parse_line(fields):
             else:
                 out.append(("ld", int(fields[i + 1], 16)))
                 i += 2
+        elif t == "c1_fflags" and fp_flags:
+            out.append((t, int(fields[i + 1], 16)))
+            i += 2
         elif re.fullmatch(r"c\d+_\w+", t):
-            i += 2  # CSR writes are not compared
+            i += 2  # other CSR writes are not compared
         else:
             i += 1
-    return out
+    return sorted(out)  # the order of the fields differs between Spike's log lines
 
 
 def read_spike(path):
@@ -95,7 +119,8 @@ def read_spike(path):
             pc = int(m.group(1), 16)
             if pc < BASE:
                 continue
-            trace.append((pc, int(m.group(2), 16), parse_line(m.group(3).split())))
+            insn = int(m.group(2), 16)
+            trace.append((pc, insn, parse_line(m.group(3).split(), (insn & 0x7f) != 0x73)))
     return trace
 
 
@@ -160,7 +185,7 @@ def run_one(args, suite, name, elf):
         return name, status, detail
     if args.spike:
         with open(base + ".spike.log", "w") as f:
-            subprocess.run(["spike", "--isa=" + SPIKE_ISA] + SPIKE_ARGS + ["--log-commits", elf],
+            subprocess.run(["spike", "--isa=" + spike_isa(args.isa)] + SPIKE_ARGS + ["--log-commits", elf],
                            stdout=subprocess.DEVNULL, stderr=f, timeout=600)
         diff = compare(read_rtl(base + ".rtl.log"), read_spike(base + ".spike.log"))
         if diff:
@@ -189,7 +214,8 @@ def collect(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sim", required=True)
-    ap.add_argument("--suites", default="ui,um,uf,mi")
+    ap.add_argument("--isa", default="rv32imf", choices=ISAS)
+    ap.add_argument("--suites", default="", help="default: every suite of --isa")
     ap.add_argument("--tests", default="")
     ap.add_argument("--spike", action="store_true")
     ap.add_argument("--mem-stall", type=int, default=0)
@@ -202,14 +228,18 @@ def main():
     ap.add_argument("-j", "--jobs", type=int, default=4)
     args = ap.parse_args()
 
+    if not args.suites:
+        args.suites = default_suites(args.isa)
     os.makedirs(args.workdir, exist_ok=True)
     work = []
     skipped = []
     if args.random:
         rdir = os.path.join(args.workdir, "random")
+        shutil.rmtree(rdir, ignore_errors=True)  # no programs of an earlier run
         os.makedirs(rdir, exist_ok=True)
         r = run([sys.executable, os.path.join(ROOT, "scripts", "gen_random.py"), "--out", rdir,
-                 "--count", str(args.random), "--seed", str(args.seed), "--kind", args.random_kind])
+                 "--count", str(args.random), "--seed", str(args.seed), "--kind", args.random_kind,
+                 "--isa", args.isa])
         if r.returncode:
             sys.exit(r.stdout)
         for f in sorted(os.listdir(rdir)):
@@ -225,7 +255,7 @@ def main():
                 skipped.append((name, SKIP[name]))
                 continue
             try:
-                work.append((suite, name, build_test(src, out, name)))
+                work.append((suite, name, build_test(src, out, name, args.isa)))
             except RuntimeError as e:
                 print(name, e)
                 sys.exit(1)
@@ -242,8 +272,8 @@ def main():
     passed = sum(1 for r in results if r[1] == "PASS")
     lines = ["%-28s %s" % (n, s) for n, s, _ in results]
     lines += ["%-28s SKIP (%s)" % s for s in skipped]
-    summary = "%d/%d passed, %d skipped (spike=%s, mem_stall=%d%%, seed=%d)" % (
-        passed, len(results), len(skipped), "yes" if args.spike else "no", args.mem_stall, args.seed)
+    summary = "%d/%d passed, %d skipped (isa=%s, spike=%s, mem_stall=%d%%, seed=%d)" % (
+        passed, len(results), len(skipped), args.isa, "yes" if args.spike else "no", args.mem_stall, args.seed)
     with open(os.path.join(args.workdir, "summary.txt"), "w") as f:
         f.write("\n".join(lines + [summary]) + "\n")
     print(summary)

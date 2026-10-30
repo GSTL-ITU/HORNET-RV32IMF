@@ -13,7 +13,9 @@ module hornet_board #(parameter IMEM_SIZE = 65536,
                       parameter BAUD      = 115200,
                       parameter BOOT_ADDR = 32'h0000_0000,
                       parameter N_LED     = 16,        //at most 16
-                      parameter N_SW      = 16)        //at most 16
+                      parameter N_SW      = 16,        //at most 16
+                      parameter RV_M      = 1,         //M extension
+                      parameter RV_F      = 1)         //F extension
 (input         CLK100MHZ,
  input         CPU_RESETN,
  input         UART_TXD_IN,   //from the USB-UART bridge
@@ -71,7 +73,8 @@ wire [1:0]  bresp, rresp;
 wire [31:0] rdata;
 
 hornet_soc #(.IMEM_SIZE(IMEM_SIZE), .DMEM_SIZE(DMEM_SIZE), .IMEM_INIT(IMEM_INIT), .DMEM_INIT(DMEM_INIT),
-             .CLK_FREQ(CLK_FREQ), .BAUD(BAUD), .BOOT_ADDR(BOOT_ADDR)) SOC
+             .CLK_FREQ(CLK_FREQ), .BAUD(BAUD), .BOOT_ADDR(BOOT_ADDR),
+             .RV_M(RV_M), .RV_F(RV_F)) SOC
     (.clk_i(clk),
      .rst_ni(rst_n),
      .uart_rx_i(UART_TXD_IN),

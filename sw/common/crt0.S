@@ -1,4 +1,4 @@
-# HORNET startup: stack, gp, FPU on, trap vector, .bss, constructors, main, exit
+# HORNET startup: stack, gp, FPU on (F builds), trap vector, .bss, constructors, main, exit
     .section .init, "ax"
     .global _start
 _start:
@@ -11,9 +11,11 @@ _start:
     la sp, __stack_top
     add s0, sp, zero
 
+#ifdef __riscv_flen
     li t0, 0x2000            # mstatus.FS = Initial
     csrs mstatus, t0
     csrwi fcsr, 0
+#endif
     la t0, __trap_entry
     csrw mtvec, t0
 

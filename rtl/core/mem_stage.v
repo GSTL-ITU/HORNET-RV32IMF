@@ -1,7 +1,8 @@
 // MEM: data request, multiplier, CSR access, trap commit and the MEM/WB register
 `include "hornet_defs.vh"
 
-module mem_stage(input             clk_i,
+module mem_stage #(parameter RV_M = 1)
+                (input             clk_i,
                  input             rst_ni,
 
                  //from EX/MEM
@@ -132,9 +133,18 @@ end
 
 reg intr_pend_q;
 
-//multiplier
+//multiplier (M extension)
 wire [31:0] mul_out;
-mul MUL(.op_i(instr_i[13:12]), .a_i(rs1_data_i), .b_i(rs2_data_i), .result_o(mul_out));
+generate
+if(RV_M != 0)
+begin : M_MUL
+    mul MUL(.op_i(instr_i[13:12]), .a_i(rs1_data_i), .b_i(rs2_data_i), .result_o(mul_out));
+end
+else
+begin : NO_MUL
+    assign mul_out = 32'b0;
+end
+endgenerate
 
 always @(posedge clk_i or negedge rst_ni)
 begin

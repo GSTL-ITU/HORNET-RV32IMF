@@ -1,12 +1,15 @@
 // Core testbench: memory with random wait states, tohost, interrupt control, RVFI trace
 //
+// The trace has one line per retired instruction in the format of Spike's commit log:
+//   [trap |intr ]0x<pc> (0x<insn>) [c1_fflags 0x<fflags>] [x<n>|f<n> 0x<value>] [mem 0x<addr> [0x<store data>]]
+//
 // plusargs: +hex=<file> +trace=<file> +waves=<file.fst> +tohost=<hex> +mem_stall=<pct> +seed=<n> +timeout=<cycles>
 // Data-port devices outside the memory:
 //   0xF000_0000  write: interrupt lines {fast[15:0], 13'b0, meip, mtip, msip}
 //   0xE000_0000  bus error region (instruction and data ports)
 `timescale 1ns/1ps
 
-module hornet_tb;
+module hornet_tb #(parameter RV_M = 1, parameter RV_F = 1);
 
 localparam [31:0] BASE      = 32'h8000_0000;
 localparam        MEM_WORDS = 1 << 20; //4 MB
@@ -44,7 +47,7 @@ wire [3:0]  rvfi_mem_rmask, rvfi_mem_wmask;
 wire [1:0]  rvfi_mode, rvfi_ixl;
 wire        rvfi_frd_we;
 
-hornet_core #(.RESET_VECTOR(BASE), .MTVEC_RESET(BASE)) dut
+hornet_core #(.RESET_VECTOR(BASE), .MTVEC_RESET(BASE), .RV_M(RV_M), .RV_F(RV_F)) dut
     (.clk_i(clk), .rst_ni(rst_n),
      .instr_req_o(instr_req), .instr_gnt_i(instr_gnt), .instr_addr_o(instr_addr),
      .instr_rvalid_i(instr_rvalid), .instr_rdata_i(instr_rdata), .instr_err_i(instr_err),
@@ -237,6 +240,10 @@ task automatic write_trace();
     else if(rvfi_intr)
         tag = "intr ";
     line = {tag, $sformatf("0x%08x (0x%08x)", rvfi_pc_rdata, rvfi_insn)};
+    //accumulated fflags after an FP instruction that raised a flag, as Spike logs it
+    //(the instruction in WB has already committed its flags in MEM)
+    if(!rvfi_trap && rvfi_fflags != 5'b0 && rvfi_insn[6:0] != 7'b1110011)
+        line = {line, $sformatf(" c1_fflags 0x%08x", {27'b0, dut.CSR_UNIT.fflags})};
     if(rvfi_rd_addr != 5'd0)
         line = {line, $sformatf(" x%0d 0x%08x", rvfi_rd_addr, rvfi_rd_wdata)};
     if(rvfi_frd_we)

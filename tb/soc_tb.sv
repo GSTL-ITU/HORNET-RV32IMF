@@ -16,6 +16,8 @@ module soc_tb;
 parameter IMEM_SIZE = 65536;
 parameter DMEM_SIZE = 65536;
 parameter BOOT_ADDR = 32'h0000_0000;
+parameter RV_M      = 1;
+parameter RV_F      = 1;
 localparam CLK_FREQ = 50000000;
 localparam BAUD     = 3125000; //16 cycles per bit
 
@@ -35,7 +37,8 @@ reg         awready = 1'b0, wready = 1'b0, bvalid = 1'b0, arready = 1'b0, rvalid
 reg  [1:0]  bresp = 2'b00, rresp = 2'b00;
 reg  [31:0] rdata = 32'b0;
 
-hornet_soc #(.IMEM_SIZE(IMEM_SIZE), .DMEM_SIZE(DMEM_SIZE), .CLK_FREQ(CLK_FREQ), .BAUD(BAUD), .BOOT_ADDR(BOOT_ADDR)) dut
+hornet_soc #(.IMEM_SIZE(IMEM_SIZE), .DMEM_SIZE(DMEM_SIZE), .CLK_FREQ(CLK_FREQ), .BAUD(BAUD), .BOOT_ADDR(BOOT_ADDR),
+             .RV_M(RV_M), .RV_F(RV_F)) dut
     (.clk_i(clk), .rst_ni(rst_n),
      .uart_rx_i(uart_rx), .uart_tx_o(uart_tx),
      .gpio_i(gpio_o), .gpio_o(gpio_o), .gpio_oe_o(gpio_oe),

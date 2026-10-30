@@ -21,3 +21,9 @@ lint_off -rule UNUSEDSIGNAL -file "rtl/soc/*"
 lint_off -rule UNSIGNED -file "*/data_router.v"
 // mepc[1:0] are never read
 lint_off -rule UNUSEDSIGNAL -file "*/csr_unit.v" -match "*mepc_q*"
+// configurations without F (RV_F = 0): the FPU operands and the float register file are not built
+lint_off -rule UNUSEDSIGNAL -file "*/ex_stage.v" -match "*fpu_op_i*"
+lint_off -rule UNUSEDSIGNAL -file "*/ex_stage.v" -match "*fpu_rm_i*"
+lint_off -rule UNUSEDSIGNAL -file "*/ex_stage.v" -match "*use_c*"
+lint_off -rule UNUSEDSIGNAL -file "*/regfile.v" -match "*rs3_i*"
+lint_off -rule UNUSEDSIGNAL -file "*/regfile.v" -match "*wr_f*"

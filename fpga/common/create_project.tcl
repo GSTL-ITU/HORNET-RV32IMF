@@ -1,11 +1,13 @@
 # Vivado GUI project for a board, with the program images in the block RAMs.
 #
-#   vivado -mode batch -source fpga/common/create_project.tcl -tclargs <board> <dir> <imem.hex> <dmem.hex> [IMEM_SIZE DMEM_SIZE CLK_DIV BOOT_ADDR]
+#   vivado -mode batch -source fpga/common/create_project.tcl -tclargs <board> <dir> <imem.hex> <dmem.hex> [IMEM_SIZE DMEM_SIZE CLK_DIV BOOT_ADDR RV_M RV_F]
 #   Vivado GUI: Tools > Run Tcl Script > fpga/<board>/create_project.tcl
 #
 # Without program arguments it creates build/vivado-<board>/hornet.xpr with the
 # default images (bootloader + LED blink). To change the program, rebuild the
 # images and replace imem.hex/dmem.hex in the project directory, then Generate Bitstream.
+# The ISA is the generics RV_M and RV_F (Settings > General > Generic/Parameter);
+# the images must be built for the same ISA.
 set script_name create_project.tcl
 source [file dirname [file normalize [info script]]]/board.tcl
 board_args $fpga_dir/../build/vivado-$board
@@ -24,4 +26,4 @@ set_property top hornet_board [current_fileset]
 set_property generic [join [board_generic_list] " "] [current_fileset]
 set_property include_dirs [list $rtl/core $rtl/fpu] [current_fileset]
 update_compile_order -fileset sources_1
-puts "RESULT: $board_name project $dir/hornet.xpr"
+puts "RESULT: $board_name project $dir/hornet.xpr ([board_isa])"

@@ -1,4 +1,4 @@
-// HORNET SoC: core, instruction and data memories, AXI4-Lite peripherals and an external AXI4-Lite port
+// HORNET SoC (RV32I with optional M and F): core, instruction and data memories, AXI4-Lite peripherals and an external AXI4-Lite port
 //   0x0000_0000 IMEM   0x1000_0000 DMEM   0x2000_0000 timer   0x2001_0000 UART   0x2002_0000 GPIO
 //   0x2003_0000 system control
 //   0x4000_0000 - 0x7FFF_FFFF external AXI4-Lite (m_axi_*)
@@ -8,7 +8,9 @@ module hornet_soc #(parameter IMEM_SIZE = 65536,
                     parameter DMEM_INIT = "",
                     parameter CLK_FREQ  = 50000000,
                     parameter BAUD      = 115200,
-                    parameter BOOT_ADDR = 32'h0000_0000) //reset vector (the bootloader sits at the top of IMEM)
+                    parameter BOOT_ADDR = 32'h0000_0000, //reset vector (the bootloader sits at the top of IMEM)
+                    parameter RV_M      = 1,              //M extension
+                    parameter RV_F      = 1)              //F extension
 (input         clk_i,
  input         rst_ni, //synchronous release
 
@@ -52,7 +54,7 @@ wire [31:0] data_addr, data_wdata, data_rdata;
 wire        msip, mtip, uart_irq, gpio_irq;
 wire [63:0] mtime;
 
-hornet_core #(.RESET_VECTOR(BOOT_ADDR), .MTVEC_RESET(BOOT_ADDR)) CORE
+hornet_core #(.RESET_VECTOR(BOOT_ADDR), .MTVEC_RESET(BOOT_ADDR), .RV_M(RV_M), .RV_F(RV_F)) CORE
     (.clk_i(clk_i),
      .rst_ni(rst_ni),
      .instr_req_o(instr_req),

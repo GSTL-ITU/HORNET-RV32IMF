@@ -11,7 +11,9 @@ CSR instructions, traps and mret commit when they leave the MEM stage.
 
 module csr_unit #(parameter MTVEC_RESET = 32'h0000_0000,
                   parameter HART_ID     = 32'd0,
-                  parameter IMP_ID      = 32'd0)
+                  parameter IMP_ID      = 32'd0,
+                  parameter RV_M        = 1,
+                  parameter RV_F        = 1)
 (input             clk_i,
  input             rst_ni,
 
@@ -61,12 +63,17 @@ reg  [63:0] mcycle_q, minstret_q;
 reg  [4:0]  fflags_q;
 reg  [2:0]  frm_q;
 
-wire [31:0] mstatus = {mstatus_fs_q == 2'b11, 16'b0, mstatus_fs_q, 2'b11, 3'b0, `mstatus_mpie, 3'b0, `mstatus_mie, 3'b0};
+//without F, mstatus.FS is read-only zero and fflags/frm do not exist
+wire [1:0]  fs      = RV_F != 0 ? mstatus_fs_q : 2'b00;
+wire [4:0]  fflags  = RV_F != 0 ? fflags_q : 5'b0;
+wire [2:0]  frm     = RV_F != 0 ? frm_q : 3'b0;
+wire [31:0] mstatus = {fs == 2'b11, 16'b0, fs, 2'b11, 3'b0, `mstatus_mpie, 3'b0, `mstatus_mie, 3'b0};
 wire [31:0] mip     = {fast_irq_i, 4'b0, meip_i, 3'b0, mtip_i, 3'b0, msip_i, 3'b0};
-wire [31:0] misa    = 32'h4000_1120; //RV32IMF
+//MXL = 32, I, M (bit 12), F (bit 5)
+wire [31:0] misa    = 32'h4000_0100 | (RV_M != 0 ? 32'h0000_1000 : 32'b0) | (RV_F != 0 ? 32'h0000_0020 : 32'b0);
 
-assign fs_off_o   = mstatus_fs_q == 2'b00;
-assign frm_o      = frm_q;
+assign fs_off_o   = fs == 2'b00;
+assign frm_o      = frm;
 assign mepc_o     = {mepc_q[31:2], 2'b00}; //IALIGN = 32, also before the first write
 assign mcycle_o   = mcycle_q;
 assign minstret_o = minstret_q;
@@ -74,9 +81,9 @@ assign minstret_o = minstret_q;
 always @*
 begin
     casez(csr_addr_i)
-        `CSR_FFLAGS:        csr_rdata_o = {27'b0, fflags_q};
-        `CSR_FRM:           csr_rdata_o = {29'b0, frm_q};
-        `CSR_FCSR:          csr_rdata_o = {24'b0, frm_q, fflags_q};
+        `CSR_FFLAGS:        csr_rdata_o = {27'b0, fflags};
+        `CSR_FRM:           csr_rdata_o = {29'b0, frm};
+        `CSR_FCSR:          csr_rdata_o = {24'b0, frm, fflags};
         `CSR_MSTATUS:       csr_rdata_o = mstatus;
         `CSR_MISA:          csr_rdata_o = misa;
         `CSR_MIE:           csr_rdata_o = mie_q;

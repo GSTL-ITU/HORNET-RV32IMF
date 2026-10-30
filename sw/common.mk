@@ -31,9 +31,23 @@ CLK_DIV ?= 20
 # 1: printf supports %f (larger program)
 FLOAT_PRINTF ?= 0
 
+# core configuration the program runs on: rv32i, rv32im or rv32imf.
+# Without F, float code uses the soft-float library; without M, multiply and
+# divide are library calls. REQUIRES = m and/or f in a program's Makefile
+# marks programs that need an extension in hardware (run_sw_tests.py skips them).
+ISA ?= rv32imf
+ifeq ($(filter rv32i rv32im rv32imf,$(ISA)),)
+$(error ISA=$(ISA): use rv32i, rv32im or rv32imf)
+endif
+REQUIRES ?=
+MISSING := $(foreach e,$(REQUIRES),$(if $(findstring $(e),$(patsubst rv32i%,%,$(ISA))),,$(e)))
+ifneq ($(MISSING),)
+$(error $(PROG) needs the $(MISSING) extension, ISA=$(ISA) does not have it)
+endif
+
 RISCV_PREFIX ?= riscv32-unknown-elf-
-MARCH ?= rv32imf_zicsr_zifencei
-MABI  ?= ilp32f
+MARCH ?= $(ISA)_zicsr_zifencei
+MABI  ?= $(if $(findstring f,$(patsubst rv32i%,%,$(ISA))),ilp32f,ilp32)
 
 IMAGE      ?= hornet-dev:latest
 USE_DOCKER ?= $(if $(HORNET_CONTAINER),0,$(if $(shell command -v docker 2>/dev/null),1,0))
@@ -77,8 +91,8 @@ ELF = $(OUT)/$(PROG).elf
 
 all: $(OUT)/$(PROG).imem.hex
 
-# rebuild when the memory layout or the optimisation changes (the images depend on them)
-LAYOUT = $(OUT)/.layout-$(IMEM_SIZE)-$(DMEM_SIZE)-$(STACK_SIZE)-$(IMEM_ORIGIN)-$(DMEM_SKIP)$(subst $() ,,$(OPT))
+# rebuild when the ISA, the memory layout or the optimisation changes (the images depend on them)
+LAYOUT = $(OUT)/.layout-$(ISA)-$(IMEM_SIZE)-$(DMEM_SIZE)-$(STACK_SIZE)-$(IMEM_ORIGIN)-$(DMEM_SKIP)$(subst $() ,,$(OPT))
 $(LAYOUT):
 	@mkdir -p $(OUT)
 	@rm -f $(OUT)/.layout-*
@@ -95,14 +109,14 @@ $(OUT)/$(PROG).imem.hex: $(ELF)
 	    $(RISCV_PREFIX)size $<'
 	cp $(OUT)/$(PROG).imem.hex $(OUT)/imem.hex
 	cp $(OUT)/$(PROG).dmem.hex $(OUT)/dmem.hex
-	echo "IMEM_SIZE=$$(($(IMEM_SIZE))) DMEM_SIZE=$$(($(DMEM_SIZE))) PROG=$(PROG) PROG_CLK_DIV=$(CLK_DIV)" > $(OUT)/mem.cfg
+	echo "IMEM_SIZE=$$(($(IMEM_SIZE))) DMEM_SIZE=$$(($(DMEM_SIZE))) PROG=$(PROG) PROG_CLK_DIV=$(CLK_DIV) PROG_ISA=$(ISA)" > $(OUT)/mem.cfg
 
 size: $(ELF)
 	$(RUN) $(RISCV_PREFIX)size -A $<
 
 SIM_ARGS ?=
 sim: all
-	$(MAKE) -C $(HORNET_ROOT) soc-sim HEX=$(if $(OUT_OF_TREE),$(abspath $(OUT)/$(PROG)),$(patsubst $(HORNET_ROOT)/%,%,$(abspath $(OUT)/$(PROG)))) \
+	$(MAKE) -C $(HORNET_ROOT) soc-sim ISA=$(ISA) HEX=$(if $(OUT_OF_TREE),$(abspath $(OUT)/$(PROG)),$(patsubst $(HORNET_ROOT)/%,%,$(abspath $(OUT)/$(PROG)))) \
 	    IMEM_SIZE=$(IMEM_SIZE) DMEM_SIZE=$(DMEM_SIZE) $(if $(OUT_OF_TREE),EXTRA_MOUNT=$(SRC_ROOT)) SOC_ARGS="$(SIM_ARGS)"
 
 clean:

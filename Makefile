@@ -20,6 +20,19 @@ endif
 
 BUILD   ?= build
 
+# ISA configuration of the core: rv32i, rv32im or rv32imf (RV_M/RV_F
+# parameters of hornet_core, hornet_soc and hornet_board). Simulation models,
+# test results and bitstreams go to per-ISA directories.
+ISA     ?= rv32imf
+ISAS    ?= rv32i rv32im rv32imf
+ifeq ($(filter $(ISA),$(ISAS)),)
+$(error ISA=$(ISA): use one of $(ISAS))
+endif
+ISA_EXT  = $(patsubst rv32i%,%,$(ISA))
+RV_M     = $(if $(findstring m,$(ISA_EXT)),1,0)
+RV_F     = $(if $(findstring f,$(ISA_EXT)),1,0)
+ISA_GEN  = -GRV_M=$(RV_M) -GRV_F=$(RV_F)
+
 CORE_SRCS = rtl/core/hornet_core.v rtl/core/if_stage.v rtl/core/id_stage.v rtl/core/ex_stage.v \
             rtl/core/mem_stage.v rtl/core/wb_stage.v rtl/core/hazard_unit.v rtl/core/csr_unit.v \
             rtl/core/regfile.v rtl/core/control_unit.v rtl/core/imm_decoder.v rtl/core/ALU.v \
@@ -33,15 +46,17 @@ SOC_SRCS  = rtl/soc/hornet_soc.v rtl/soc/imem.v rtl/soc/dmem.v rtl/soc/data_rout
 RTL_SRCS  = $(CORE_SRCS) $(FPU_SRCS)
 RTL_INC   = -Irtl/core -Irtl/fpu
 
-SIM        = $(BUILD)/sim/core/Vhornet_tb
+SIM        = $(BUILD)/sim/core-$(ISA)/Vhornet_tb
 SIM_FPU    = $(BUILD)/sim/fpu/Vfpu_tb
 VERILATOR_FLAGS = --binary --timing -j $(JOBS) -Wno-fatal -Wno-lint -Wno-style +1364-2005ext+v \
                   --trace-fst --timescale 1ns/1ps $(RTL_INC)
 
 RISCV_TESTS  = verif/riscv-tests/isa/rv32ui/Makefrag
+RISCV_DV     = verif/riscv-dv/pygen/pygen_src/riscv_instr_pkg.py
 RISCV_FORMAL = verif/riscv-formal/checks/genchecks.py
 
-SUITES    ?= ui,um,uf,mi
+# empty: every riscv-tests suite of the ISA (ui, um with M, uf with F, mi)
+SUITES    ?=
 TEST_ARGS ?=
 MEM_STALL ?= 30
 RANDOM    ?= 200
@@ -53,23 +68,30 @@ FORMAL_TIMEOUT ?= 2400
 FORMAL_CHECKS  ?=
 
 .PHONY: help docker-build shell tool-versions lint sim test cosim cosim-stall random fpu-test formal soc-sim sw-tests boot-test regress clean \
-        fpga-build fpga-default fpga-program fpga-run fpga-project fpga-ip fpga-bd
+        riscv-dv riscv-dv-loop \
+        regress-isas formal-isas fpga-build fpga-default fpga-program fpga-run fpga-project fpga-ip fpga-bd
 
 help:
 	@echo "make docker-build   Build the $(IMAGE) image"
 	@echo "make shell          Interactive shell in the image"
+	@echo "ISA=$(ISA)          core configuration for every target below: $(ISAS)"
 	@echo "make lint           Verilator lint of the RTL (Verilog-2005)"
 	@echo "make sim            Build the core testbench"
-	@echo "make test           riscv-tests ($(SUITES)) on the core"
+	@echo "make test           riscv-tests (the suites of ISA) on the core"
 	@echo "make cosim          The same, compared with Spike"
 	@echo "make cosim-stall    cosim with random memory wait states (MEM_STALL=$(MEM_STALL))"
 	@echo "make fpu-test       FPU alone against TestFloat and directed vectors (all rounding modes)"
 	@echo "make random         RANDOM=$(RANDOM) random programs vs. Spike, plain and with wait states"
+	@echo "make riscv-dv       RISCV-DV (pygen) programs and custom tests vs. Spike, trace CSV comparison"
+	@echo "                    DV_TESTS=\"riscv_rand_instr_test ...\" DV_ITER=<n> DV_SEED=<n> DV_ARGS=\"--loop ...\""
+	@echo "make riscv-dv-loop  RISCV-DV with new seeds until a program fails (DV_RUNS=<max programs>)"
 	@echo "make formal         riscv-formal on the RVFI port (FORMAL_JOBS=$(FORMAL_JOBS), FORMAL_CHECKS=\"reg_ch0 ...\")"
 	@echo "make soc-sim HEX=<path/prog>  Run <prog>.imem.hex/.dmem.hex on the SoC testbench"
 	@echo "make sw-tests       Build and run the SoC test programs in sw/tests"
 	@echo "make boot-test      The UART bootloader loads and runs a program (simulation)"
-	@echo "make regress        Everything above plus formal"
+	@echo "make regress        lint, fpu-test, cosim, cosim-stall, random, sw-tests, boot-test and formal for ISA"
+	@echo "make regress-isas   lint, cosim, cosim-stall, random, sw-tests, boot-test for every ISA in ISAS"
+	@echo "make formal-isas    formal for every ISA in ISAS"
 	@echo "make fpga-build FPGA_PROG=sw/examples/gpio   Bitstream with that program in the BRAMs (Vivado, host)"
 	@echo "                    BOARD=$(BOARD) (any fpga/<board>/ with board.tcl: nexys4ddr, nexysvideo)"
 	@echo "                    BOOTLOADER=1 adds the UART bootloader (scripts/hornet_load.py loads programs)"
@@ -96,17 +118,20 @@ $(RISCV_TESTS):
 $(RISCV_FORMAL):
 	git submodule update --init verif/riscv-formal
 
+$(RISCV_DV):
+	git submodule update --init verif/riscv-dv
+
 lint:
-	$(DOCKER_RUN) verilator --lint-only -Wall --language 1364-2005 $(RTL_INC) --top-module hornet_core \
+	$(DOCKER_RUN) verilator --lint-only -Wall --language 1364-2005 $(RTL_INC) --top-module hornet_core $(ISA_GEN) \
 	    rtl/lint.vlt $(RTL_SRCS)
-	$(DOCKER_RUN) verilator --lint-only -Wall --language 1364-2005 $(RTL_INC) --top-module hornet_soc \
+	$(DOCKER_RUN) verilator --lint-only -Wall --language 1364-2005 $(RTL_INC) --top-module hornet_soc $(ISA_GEN) \
 	    rtl/lint.vlt $(RTL_SRCS) $(SOC_SRCS)
 
 sim: $(SIM)
 
 $(SIM): $(RTL_SRCS) tb/hornet_tb.sv
 	@mkdir -p $(@D)
-	$(DOCKER_RUN) verilator $(VERILATOR_FLAGS) --top-module hornet_tb --Mdir $(@D) -o $(@F) \
+	$(DOCKER_RUN) verilator $(VERILATOR_FLAGS) --top-module hornet_tb --Mdir $(@D) -o $(@F) $(ISA_GEN) \
 	    $(RTL_SRCS) tb/hornet_tb.sv > $(@D).log
 	@echo "Built $@"
 
@@ -134,10 +159,10 @@ fpu-test: $(SIM_FPU) $(BUILD)/fpu/vectors.txt $(BUILD)/fpu/directed.txt
 IMEM_SIZE ?= 0x10000
 DMEM_SIZE ?= 0x10000
 BOOT_ADDR ?= 0x0
-SIM_SOC    = $(BUILD)/sim/soc-$(IMEM_SIZE)-$(DMEM_SIZE)-$(BOOT_ADDR)/Vsoc_tb
+SIM_SOC    = $(BUILD)/sim/soc-$(ISA)-$(IMEM_SIZE)-$(DMEM_SIZE)-$(BOOT_ADDR)/Vsoc_tb
 $(SIM_SOC): $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv
 	@mkdir -p $(@D)
-	$(DOCKER_RUN) verilator $(VERILATOR_FLAGS) --top-module soc_tb --Mdir $(@D) -o $(@F) \
+	$(DOCKER_RUN) verilator $(VERILATOR_FLAGS) --top-module soc_tb --Mdir $(@D) -o $(@F) $(ISA_GEN) \
 	    -GIMEM_SIZE=$$(($(IMEM_SIZE))) -GDMEM_SIZE=$$(($(DMEM_SIZE))) -GBOOT_ADDR=$$(($(BOOT_ADDR))) $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv > $(@D).log
 	@echo "Built $@"
 
@@ -146,37 +171,64 @@ soc-sim: $(SIM_SOC)
 	$(DOCKER_RUN) sh -c '$(SIM_SOC) +imem=$(HEX).imem.hex +dmem=$(HEX).dmem.hex +uart_log=$(HEX).uart.log $(SOC_ARGS) | grep -v "^- "'
 
 sw-tests: $(SIM_SOC)
-	$(DOCKER_RUN) python3 scripts/run_sw_tests.py --sim $(SIM_SOC) -j $(JOBS)
+	$(DOCKER_RUN) python3 scripts/run_sw_tests.py --sim $(SIM_SOC) --isa $(ISA) -j $(JOBS)
 
 # the bootloader alone in IMEM loads sw/tests/hello over the UART and runs it
 boot-test:
-	$(MAKE) -s -C sw/bootloader
-	$(MAKE) -s -C sw/tests/hello
-	$(DOCKER_RUN) python3 scripts/hornet_load.py --emit sw/bootloader/build/hello.bin sw/tests/hello/build/hello.elf
-	$(MAKE) -s soc-sim BOOT_ADDR=0xf000 HEX=sw/bootloader/build/bootloader \
-	    SOC_ARGS="+uart_in=sw/bootloader/build/hello.bin +timeout=3000000" | tee $(BUILD)/boot-test.log
-	@grep -q "^PASS" $(BUILD)/boot-test.log
+	$(MAKE) -s -C sw/bootloader ISA=$(ISA) OUT=build/$(ISA)
+	$(MAKE) -s -C sw/tests/hello ISA=$(ISA) OUT=build/$(ISA)
+	@mkdir -p $(BUILD)/$(ISA)
+	$(DOCKER_RUN) python3 scripts/hornet_load.py --emit sw/bootloader/build/$(ISA)/hello.bin sw/tests/hello/build/$(ISA)/hello.elf
+	$(MAKE) -s soc-sim BOOT_ADDR=0xf000 HEX=sw/bootloader/build/$(ISA)/bootloader \
+	    SOC_ARGS="+uart_in=sw/bootloader/build/$(ISA)/hello.bin +timeout=3000000" | tee $(BUILD)/$(ISA)/boot-test.log
+	@grep -q "^PASS" $(BUILD)/$(ISA)/boot-test.log
 
+TEST_ISA = --isa $(ISA) $(if $(SUITES),--suites $(SUITES))
 test: $(SIM) $(RISCV_TESTS)
-	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --suites $(SUITES) -j $(JOBS) $(TEST_ARGS)
+	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) $(TEST_ISA) -j $(JOBS) --workdir $(BUILD)/$(ISA)/tests $(TEST_ARGS)
 
 cosim: $(SIM) $(RISCV_TESTS)
-	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --suites $(SUITES) --spike -j $(JOBS) $(TEST_ARGS)
+	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) $(TEST_ISA) --spike -j $(JOBS) --workdir $(BUILD)/$(ISA)/tests $(TEST_ARGS)
 
 cosim-stall: $(SIM) $(RISCV_TESTS)
-	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --suites $(SUITES) --spike -j $(JOBS) \
-	    --mem-stall $(MEM_STALL) --workdir $(BUILD)/tests-stall $(TEST_ARGS)
+	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) $(TEST_ISA) --spike -j $(JOBS) \
+	    --mem-stall $(MEM_STALL) --workdir $(BUILD)/$(ISA)/tests-stall $(TEST_ARGS)
 
 random: $(SIM)
-	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --spike -j $(JOBS) --random $(RANDOM) \
-	    --seed $(SEED) --workdir $(BUILD)/random
-	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --spike -j $(JOBS) --random $(RANDOM) \
-	    --seed $(SEED) --mem-stall $(MEM_STALL) --workdir $(BUILD)/random-stall
+	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --isa $(ISA) --spike -j $(JOBS) --random $(RANDOM) \
+	    --seed $(SEED) --workdir $(BUILD)/$(ISA)/random
+	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --isa $(ISA) --spike -j $(JOBS) --random $(RANDOM) \
+	    --seed $(SEED) --mem-stall $(MEM_STALL) --workdir $(BUILD)/$(ISA)/random-stall
+
+# RISCV-DV: verif/dv/testlist.yaml and verif/dv/directed/*.S (docs: verification)
+DV_TESTS ?=
+DV_ITER  ?=
+DV_SEED  ?= 1
+DV_RUNS  ?= 0
+DV_ARGS  ?=
+DV_RUN    = $(DOCKER_RUN) python3 scripts/riscv_dv.py --sim $(SIM) --isa $(ISA) -j $(JOBS) --seed $(DV_SEED) \
+            $(if $(DV_TESTS),--tests $(subst $() ,$(comma),$(strip $(DV_TESTS)))) $(if $(DV_ITER),--iterations $(DV_ITER))
+comma    := ,
+riscv-dv: $(SIM) $(RISCV_DV)
+	$(DV_RUN) $(DV_ARGS)
+
+riscv-dv-loop: $(SIM) $(RISCV_DV)
+	$(DV_RUN) --loop --max-runs $(DV_RUNS) --no-directed --out $(BUILD)/$(ISA)/riscv-dv-loop $(DV_ARGS)
 
 formal: $(RISCV_FORMAL)
-	$(DOCKER_RUN) env FORMAL_TIMEOUT=$(FORMAL_TIMEOUT) scripts/run_formal.sh $(BUILD) $(FORMAL_JOBS) $(FORMAL_CHECKS)
+	$(DOCKER_RUN) env FORMAL_TIMEOUT=$(FORMAL_TIMEOUT) HORNET_ISA=$(ISA) scripts/run_formal.sh $(BUILD) $(FORMAL_JOBS) $(FORMAL_CHECKS)
 
-regress: lint fpu-test cosim cosim-stall random formal
+regress: lint fpu-test cosim cosim-stall random sw-tests boot-test formal
+
+# every configuration (the FPU unit test does not depend on the ISA: make fpu-test once)
+regress-isas:
+	@set -e; for isa in $(ISAS); do \
+	    echo "=== $$isa"; \
+	    $(MAKE) -s lint cosim cosim-stall random sw-tests boot-test ISA=$$isa; \
+	done
+
+formal-isas:
+	@for isa in $(ISAS); do $(MAKE) -s formal ISA=$$isa; done
 
 # ------------------------------------------------------------------ FPGA (Vivado on the host)
 VIVADO    ?= $(shell command -v vivado 2>/dev/null || echo /opt/Xilinx/2025.2/Vivado/bin/vivado)
@@ -185,26 +237,29 @@ BOARD     ?= nexys4ddr
 FPGA_PROG ?= sw/examples/gpio
 # empty: the program's CLK_DIV (sw/common.mk, default 20 = 50 MHz)
 CLK_DIV   ?=
-FPGA_OUT   = $(BUILD)/fpga/$(BOARD)/$(notdir $(FPGA_PROG))
+FPGA_OUT  ?= $(BUILD)/fpga/$(BOARD)/$(ISA)/$(notdir $(FPGA_PROG))
 
 # BOOTLOADER=1 adds sw/bootloader at the top of IMEM and starts there
 BOOTLOADER ?= 0
+# the program is built for ISA in <program>/build/<ISA>/
+PROG_OUT   = $(FPGA_PROG)/build/$(ISA)
 fpga-build:
-	$(MAKE) -C $(FPGA_PROG)
+	$(MAKE) -C $(FPGA_PROG) ISA=$(ISA) OUT=build/$(ISA)
 	@mkdir -p $(FPGA_OUT)
-	. $(FPGA_PROG)/build/mem.cfg && \
+	. $(PROG_OUT)/mem.cfg && \
 	if [ "$(BOOTLOADER)" = 1 ]; then \
-	    $(MAKE) -s -C sw/bootloader IMEM_SIZE=$$IMEM_SIZE DMEM_SIZE=$$DMEM_SIZE OUT=build/$$IMEM_SIZE-$$DMEM_SIZE && \
-	    boot=sw/bootloader/build/$$IMEM_SIZE-$$DMEM_SIZE/bootloader.elf && \
-	    $(DOCKER_RUN) sh -c "python3 scripts/elf2hex.py $$boot $(FPGA_PROG)/build/$$PROG.elf $(FPGA_OUT)/imem.hex --base 0 --size $$IMEM_SIZE --pad && \
-	        python3 scripts/elf2hex.py $$boot $(FPGA_PROG)/build/$$PROG.elf $(FPGA_OUT)/dmem.hex --base 0x10000000 --size $$DMEM_SIZE --pad" && \
+	    $(MAKE) -s -C sw/bootloader IMEM_SIZE=$$IMEM_SIZE DMEM_SIZE=$$DMEM_SIZE ISA=$(ISA) OUT=build/$(ISA)-$$IMEM_SIZE-$$DMEM_SIZE && \
+	    boot=sw/bootloader/build/$(ISA)-$$IMEM_SIZE-$$DMEM_SIZE/bootloader.elf && \
+	    $(DOCKER_RUN) sh -c "python3 scripts/elf2hex.py $$boot $(PROG_OUT)/$$PROG.elf $(FPGA_OUT)/imem.hex --base 0 --size $$IMEM_SIZE --pad && \
+	        python3 scripts/elf2hex.py $$boot $(PROG_OUT)/$$PROG.elf $(FPGA_OUT)/dmem.hex --base 0x10000000 --size $$DMEM_SIZE --pad" && \
 	    BOOT_ADDR=$$(($$IMEM_SIZE - 0x1000)); \
 	else \
-	    cp $(FPGA_PROG)/build/imem.hex $(FPGA_PROG)/build/dmem.hex $(FPGA_OUT)/ && BOOT_ADDR=0; \
+	    cp $(PROG_OUT)/imem.hex $(PROG_OUT)/dmem.hex $(FPGA_OUT)/ && BOOT_ADDR=0; \
 	fi && \
 	cd $(FPGA_OUT) && $(VIVADO) -mode batch -nojournal -log vivado.log \
 	    -source $(CURDIR)/fpga/common/build.tcl -tclargs $(BOARD) . $(CURDIR)/$(FPGA_OUT)/imem.hex \
-	    $(CURDIR)/$(FPGA_OUT)/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(if $(CLK_DIV),$(CLK_DIV),$${PROG_CLK_DIV:-20}) $$BOOT_ADDR > /dev/null; \
+	    $(CURDIR)/$(FPGA_OUT)/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(if $(CLK_DIV),$(CLK_DIV),$${PROG_CLK_DIV:-20}) $$BOOT_ADDR \
+	    $(RV_M) $(RV_F) > /dev/null; \
 	    grep "^RESULT" vivado.log
 
 # images the Vivado scripts use without arguments (GUI): bootloader + LED blink (board), + AXI GPIO counter (block design)
@@ -235,11 +290,11 @@ fpga-run:
 	@cat $(LOG)
 
 fpga-project:
-	$(MAKE) -C $(FPGA_PROG)
-	@mkdir -p $(BUILD)/fpga/$(BOARD)
-	. $(FPGA_PROG)/build/mem.cfg && cd $(BUILD)/fpga/$(BOARD) && $(VIVADO) -mode batch -nojournal -log project.log \
-	    -source $(CURDIR)/fpga/common/create_project.tcl -tclargs $(BOARD) project $(CURDIR)/$(FPGA_PROG)/build/imem.hex \
-	    $(CURDIR)/$(FPGA_PROG)/build/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(if $(CLK_DIV),$(CLK_DIV),$${PROG_CLK_DIV:-20})
+	$(MAKE) -C $(FPGA_PROG) ISA=$(ISA) OUT=build/$(ISA)
+	@mkdir -p $(BUILD)/fpga/$(BOARD)/$(ISA)
+	. $(PROG_OUT)/mem.cfg && cd $(BUILD)/fpga/$(BOARD)/$(ISA) && $(VIVADO) -mode batch -nojournal -log project.log \
+	    -source $(CURDIR)/fpga/common/create_project.tcl -tclargs $(BOARD) project $(CURDIR)/$(PROG_OUT)/imem.hex \
+	    $(CURDIR)/$(PROG_OUT)/dmem.hex $$IMEM_SIZE $$DMEM_SIZE $(if $(CLK_DIV),$(CLK_DIV),$${PROG_CLK_DIV:-20}) 0 $(RV_M) $(RV_F)
 
 fpga-ip:
 	@mkdir -p $(BUILD)/ip

@@ -77,7 +77,7 @@ module rvfi_wrapper (
     (* keep *) wire [31:0] core_csr_rdata, core_csr_wdata;
     (* keep *) wire [63:0] core_csr_mcycle, core_csr_minstret;
 
-    hornet_core #(.RESET_VECTOR(32'h8000_0000), .MTVEC_RESET(32'h8000_0100)) uut (
+    hornet_core #(.RESET_VECTOR(32'h8000_0000), .MTVEC_RESET(32'h8000_0100), .RV_M(%RV_M%), .RV_F(%RV_F%)) uut (
         .clk_i             (clock),
         .rst_ni            (!reset),
         .instr_req_o       (instr_req),
@@ -170,8 +170,8 @@ wire hit_misa = core_csr_valid && core_csr_addr == 12'h301;
 //misa is constant and read by every instruction model (IALIGN, M)
 assign rvfi_csr_misa_rmask = {32{1'b1}};
 assign rvfi_csr_misa_wmask = {32{hit_misa}};
-assign rvfi_csr_misa_rdata = 32'h4000_1120;
-assign rvfi_csr_misa_wdata = hit_misa ? core_csr_wdata : 32'h4000_1120;
+assign rvfi_csr_misa_rdata = %MISA%;
+assign rvfi_csr_misa_wdata = hit_misa ? core_csr_wdata : %MISA%;
 wire hit_mie = core_csr_valid && core_csr_addr == 12'h304;
 assign rvfi_csr_mie_rmask = {32{hit_mie}};
 assign rvfi_csr_mie_wmask = {32{hit_mie}};

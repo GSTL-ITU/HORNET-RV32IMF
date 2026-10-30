@@ -1,7 +1,8 @@
 // EX: forwarding, ALU, branches, divider, FPU and the EX/MEM register
 `include "hornet_defs.vh"
 
-module ex_stage(input             clk_i,
+module ex_stage #(parameter RV_M = 1, parameter RV_F = 1)
+               (input             clk_i,
                 input             rst_ni,
 
                 //from ID/EX
@@ -127,36 +128,58 @@ wire [31:0] use_a = started_q ? cap_a : op_a;
 wire [31:0] use_b = started_q ? cap_b : op_b;
 wire [31:0] use_c = started_q ? cap_c : op_c;
 
-//divider
+//divider (M extension)
 wire        div_done;
 wire [31:0] div_out;
-div DIV(.clk_i(clk_i),
-        .rst_ni(rst_ni),
-        .start_i(start && div_i),
-        .kill_i(leave),
-        .op_i(instr_i[13:12]),
-        .a_i(op_a),
-        .b_i(op_b),
-        .done_o(div_done),
-        .result_o(div_out));
+generate
+if(RV_M != 0)
+begin : M_DIV
+    div DIV(.clk_i(clk_i),
+            .rst_ni(rst_ni),
+            .start_i(start && div_i),
+            .kill_i(leave),
+            .op_i(instr_i[13:12]),
+            .a_i(op_a),
+            .b_i(op_b),
+            .done_o(div_done),
+            .result_o(div_out));
+end
+else
+begin : NO_DIV
+    assign div_done = 1'b1;
+    assign div_out  = 32'b0;
+end
+endgenerate
 
-//FPU
+//FPU (F extension)
 wire        fpu_multi, fpu_done;
 wire [31:0] fpu_out;
 wire [4:0]  fpu_flags;
-fpu_top FPU(.clk_i(clk_i),
-            .rst_ni(rst_ni),
-            .start_i(start && fpu_i),
-            .kill_i(leave),
-            .op_i(fpu_op_i),
-            .rm_i(fpu_rm_i),
-            .a_i(use_a),
-            .b_i(use_b),
-            .c_i(use_c),
-            .multi_o(fpu_multi),
-            .done_o(fpu_done),
-            .result_o(fpu_out),
-            .flags_o(fpu_flags));
+generate
+if(RV_F != 0)
+begin : F_FPU
+    fpu_top FPU(.clk_i(clk_i),
+                .rst_ni(rst_ni),
+                .start_i(start && fpu_i),
+                .kill_i(leave),
+                .op_i(fpu_op_i),
+                .rm_i(fpu_rm_i),
+                .a_i(use_a),
+                .b_i(use_b),
+                .c_i(use_c),
+                .multi_o(fpu_multi),
+                .done_o(fpu_done),
+                .result_o(fpu_out),
+                .flags_o(fpu_flags));
+end
+else
+begin : NO_FPU
+    assign fpu_multi = 1'b0;
+    assign fpu_done  = 1'b1;
+    assign fpu_out   = 32'b0;
+    assign fpu_flags = 5'b0;
+end
+endgenerate
 
 assign busy_o = valid_i && ((div_i && !div_done) || (fpu_i && fpu_multi && !fpu_done));
 
