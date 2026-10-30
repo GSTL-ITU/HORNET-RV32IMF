@@ -1,0 +1,133 @@
+# RISCV-DV tests for HORNET (pygen, the Python generator of RISCV-DV).
+#
+# The tests follow riscv-dv's base testlist (yaml/base_testlist.yaml,
+# target/rv32imafdc/testlist.yaml) with what pygen implements:
+#   - num_of_sub_program is 0: pygen's call-stack generator is a stub
+#     (riscv_instr_sequence.insert_jump_instr is "TODO"), sub-programs crash it.
+#   - directed streams: riscv_int_numeric_corner_stream, riscv_jal_instr and
+#     the load/store streams (rand, hazard, stress, single);
+#     riscv_hazard_instr_stream, riscv_multi_page_load_store_instr_stream and
+#     riscv_mem_region_stress_test exist only in the SystemVerilog generator.
+#   - riscv_loop_instr is not used: in pygen the loop counter update is a random
+#     instruction and the branch does not compare with the limit register (the
+#     constraints are commented out as TODO in riscv_loop_instr.py), so the
+#     loops need not terminate and the programs often do not assemble. Loops and
+#     backward branches are covered by scripts/gen_random.py.
+#   - riscv_hint_instr_test is not used: RISCV-DV's HINT encodings are
+#     compressed (C extension), HORNET has no C; the constraint has no solution.
+# scripts/dv/pygen_run.py fixes eight other pygen bugs at run time (see there).
+#
+# Fields: test, description, gen_opts (riscv-dv "+name=value" options, passed
+# to pygen as --name=value), iterations, requires (extensions the test needs:
+# m, f; it is skipped on a configuration without them).
+
+- test: riscv_arithmetic_basic_test
+  description: Arithmetic instructions with numeric corner values, no load/store/branch
+  gen_opts: >
+    +instr_cnt=5000
+    +num_of_sub_program=0
+    +directed_instr_0=riscv_int_numeric_corner_stream,4
+    +no_fence=1
+    +no_data_page=1
+    +no_branch_jump=1
+    +no_csr_instr=1
+  iterations: 2
+
+- test: riscv_rand_instr_test
+  description: Random instruction stress test (loads/stores, hazards, jumps)
+  gen_opts: >
+    +instr_cnt=5000
+    +num_of_sub_program=0
+    +directed_instr_0=riscv_load_store_rand_instr_stream,4
+    +directed_instr_1=riscv_load_store_hazard_instr_stream,4
+    +directed_instr_2=riscv_jal_instr,4
+  iterations: 4
+
+- test: riscv_jump_stress_test
+  description: Back-to-back jumps
+  gen_opts: >
+    +instr_cnt=3000
+    +num_of_sub_program=0
+    +directed_instr_0=riscv_jal_instr,20
+  iterations: 2
+
+- test: riscv_load_store_test
+  description: Load/store patterns (riscv-dv mmu_stress_test without the SV-only streams)
+  gen_opts: >
+    +instr_cnt=3000
+    +num_of_sub_program=0
+    +directed_instr_0=riscv_load_store_rand_instr_stream,40
+    +directed_instr_1=riscv_load_store_hazard_instr_stream,40
+    +directed_instr_2=riscv_load_store_stress_instr_stream,10
+    +directed_instr_3=riscv_single_load_store_instr_stream,10
+  iterations: 2
+
+- test: riscv_no_fence_test
+  description: Random instructions without FENCE (fewer pipeline flushes)
+  gen_opts: >
+    +instr_cnt=5000
+    +num_of_sub_program=0
+    +no_fence=1
+    +directed_instr_0=riscv_load_store_rand_instr_stream,4
+  iterations: 2
+
+- test: riscv_illegal_instr_test
+  description: Illegal instructions; the handler skips them
+  gen_opts: >
+    +instr_cnt=3000
+    +num_of_sub_program=0
+    +illegal_instr_ratio=5
+  iterations: 2
+
+- test: riscv_ebreak_test
+  description: EBREAK raises breakpoint exceptions (no debug mode)
+  gen_opts: >
+    +instr_cnt=3000
+    +num_of_sub_program=0
+    +no_ebreak=0
+  iterations: 2
+
+- test: riscv_unaligned_load_store_test
+  description: Misaligned loads and stores trap on HORNET and on Spike
+  gen_opts: >
+    +instr_cnt=3000
+    +num_of_sub_program=0
+    +enable_unaligned_load_store=1
+    +directed_instr_0=riscv_load_store_rand_instr_stream,20
+    +directed_instr_1=riscv_load_store_hazard_instr_stream,20
+  iterations: 1
+
+- test: riscv_floating_point_arithmetic_test
+  description: Floating-point arithmetic, all rounding modes, no load/store/branch
+  requires: f
+  gen_opts: >
+    +instr_cnt=5000
+    +num_of_sub_program=0
+    +no_fence=1
+    +no_data_page=1
+    +no_branch_jump=1
+    +enable_floating_point=1
+  iterations: 4
+
+- test: riscv_floating_point_rand_test
+  description: Floating point mixed with loads/stores and jumps
+  requires: f
+  gen_opts: >
+    +enable_floating_point=1
+    +instr_cnt=5000
+    +num_of_sub_program=0
+    +directed_instr_0=riscv_load_store_rand_instr_stream,4
+    +directed_instr_1=riscv_load_store_hazard_instr_stream,4
+    +directed_instr_2=riscv_jal_instr,4
+  iterations: 4
+
+- test: riscv_floating_point_mmu_stress_test
+  description: Floating point with load/store patterns
+  requires: f
+  gen_opts: >
+    +instr_cnt=3000
+    +num_of_sub_program=0
+    +enable_floating_point=1
+    +directed_instr_0=riscv_load_store_rand_instr_stream,40
+    +directed_instr_1=riscv_load_store_hazard_instr_stream,40
+  iterations: 2

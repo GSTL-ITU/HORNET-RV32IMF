@@ -1,0 +1,8 @@
+# RISCV-DV pygen (verif/riscv-dv/requirements.txt, generator part only)
+pyvsc==0.9.1.10086043874
+pyucis==0.1.3.7162246580
+pyboolector==3.2.4.20240823.1
+PyYAML==6.0.2
+bitstring==4.2.3
+tabulate==0.9.0
+pandas==2.2.3
