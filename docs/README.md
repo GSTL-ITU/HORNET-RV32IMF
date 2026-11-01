@@ -10,6 +10,9 @@ two PDF manuals:
 
 `make docs-html` builds the student's manual as HTML (`build/docs/html/`).
 
+Repository: version 2 is on <https://github.com/GSTL-ITU/HORNET-RV32IMF/tree/main>, version 1 on
+<https://github.com/GSTL-ITU/HORNET-RV32IMF/tree/legacy>.
+
 ## Part I: Using HORNET
 
 | Chapter | Contents |

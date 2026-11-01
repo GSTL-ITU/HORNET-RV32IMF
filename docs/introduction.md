@@ -60,13 +60,14 @@ simulation, tests, formal verification, software and the FPGA build.
 
 ## Repository and versions
 
-| What | Where |
-|---|---|
-| Source code | [GSTL-ITU/HORNET-RV32IMF](https://github.com/GSTL-ITU/HORNET-RV32IMF) on GitHub |
-| Version 2 (this manual) | branch [`main`](https://github.com/GSTL-ITU/HORNET-RV32IMF/tree/main), release [`v2.0.0`](https://github.com/GSTL-ITU/HORNET-RV32IMF/releases/tag/v2.0.0) |
-| Version 1 (unmaintained) | branch [`legacy`](https://github.com/GSTL-ITU/HORNET-RV32IMF/tree/legacy), release [`v1.2.0`](https://github.com/GSTL-ITU/HORNET-RV32IMF/releases/tag/v1.2.0) |
-| The PDF manuals of each release | [Releases](https://github.com/GSTL-ITU/HORNET-RV32IMF/releases) |
-| Bug reports and questions | [Issues](https://github.com/GSTL-ITU/HORNET-RV32IMF/issues) |
+- **Version 2** (this manual), branch `main`, release `v2.0.0`:\
+  <https://github.com/GSTL-ITU/HORNET-RV32IMF/tree/main>
+- **Version 1** (unmaintained), branch `legacy`, release `v1.2.0`:\
+  <https://github.com/GSTL-ITU/HORNET-RV32IMF/tree/legacy>
+- Releases, with the PDF manuals of each version:\
+  <https://github.com/GSTL-ITU/HORNET-RV32IMF/releases>
+- Bug reports and questions:\
+  <https://github.com/GSTL-ITU/HORNET-RV32IMF/issues>
 
 `git clone https://github.com/GSTL-ITU/HORNET-RV32IMF.git` gets version 2; add `--branch legacy` for version 1.
 

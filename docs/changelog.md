@@ -17,8 +17,8 @@ design by Yusuf Tekin: a new pipeline, an IEEE-compliant FPU with fused
 multiply-add, a precise trap unit, a Harvard memory system, an AXI4-Lite bus,
 a scripted verification environment and FPGA flow, and the manuals.
 
-Version 1 stays available, unchanged, on the [`legacy`](https://github.com/GSTL-ITU/HORNET-RV32IMF/tree/legacy)
-branch and as release [`v1.2.0`](https://github.com/GSTL-ITU/HORNET-RV32IMF/releases/tag/v1.2.0); the paths in
+Version 1 stays available, unchanged, on the `legacy` branch
+(<https://github.com/GSTL-ITU/HORNET-RV32IMF/tree/legacy>) and as release `v1.2.0`; the paths in
 [Repository layout](#repository-layout) below refer to it.
 
 ## Version 2.0 at a glance

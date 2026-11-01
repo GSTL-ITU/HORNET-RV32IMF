@@ -11,6 +11,9 @@ git clone --recurse-submodules https://github.com/GSTL-ITU/HORNET-RV32IMF.git
 cd HORNET-RV32IMF
 ```
 
+This is version 2, the `main` branch (<https://github.com/GSTL-ITU/HORNET-RV32IMF/tree/main>). Version 1 is on
+the `legacy` branch (<https://github.com/GSTL-ITU/HORNET-RV32IMF/tree/legacy>).
+
 (`--recurse-submodules` fetches riscv-tests, riscv-formal and RISCV-DV;
 Path A does not need them, and `make` fetches them on first use.)
 
