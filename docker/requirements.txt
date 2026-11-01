@@ -1,0 +1,2 @@
+pyelftools==0.33
+pyserial==3.5

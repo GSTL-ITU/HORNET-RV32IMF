@@ -1,0 +1,33 @@
+// VS Code Dev Container for HORNET: the hornet-dev tool image (docker/Dockerfile)
+// with this folder mounted. Needs Docker Engine (docs.docker.com/engine/install;
+// Docker Desktop on Windows and macOS) and the VS Code extension "Dev Containers"
+// (ms-vscode-remote.remote-containers). VS Code then offers "Reopen in Container".
+// Inside the container every make target runs its tools directly (HORNET_CONTAINER
+// is set in the image); Vivado stays on the host (docs: getting started).
+{
+    "name": "HORNET (hornet-dev)",
+    "build": {
+        "dockerfile": "../docker/Dockerfile",
+        "context": "../docker",
+        "args": { "JOBS": "4" }
+    },
+    // the image's "ubuntu" user, with the UID/GID of the host user (files stay yours)
+    "remoteUser": "ubuntu",
+    "updateRemoteUserUID": true,
+    "runArgs": ["--memory=8g"],
+    "postCreateCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} && git submodule update --init verif/riscv-tests verif/riscv-formal verif/riscv-dv && git -C verif/riscv-tests submodule update --init env",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "mshr-h.veriloghdl",
+                "ms-python.python",
+                "ms-vscode.makefile-tools",
+                "hediet.vscode-drawio",
+                "redhat.vscode-yaml"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "bash"
+            }
+        }
+    }
+}
