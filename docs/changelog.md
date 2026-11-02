@@ -147,3 +147,4 @@ same name: `control_unit.v`, `csr_unit.v`, `fpu_top.v`.
 | 2026-10-30 | RISCV-DV flow with pygen, Spike and trace CSV comparison |
 | 2026-10-31 | This manual: chapters per block, draw.io figures, PDF build (`make docs`) |
 | 2026-11-01 | Two manuals from the same chapters: the HORNET manual and the student's manual; table and code layout of the PDFs |
+| 2026-11-02 | Code coverage (`make coverage`, line, branch, toggle); GitHub workflows for the regression and coverage with a smaller `ci` image; the core testbench ends a test on the falling edge, so the last retired instruction is always traced |

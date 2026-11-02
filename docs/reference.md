@@ -27,7 +27,7 @@ switch counts, at most 16).
 
 | Target | Purpose | Main options |
 |---|---|---|
-| `docker-build`, `shell`, `tool-versions` | tool image | `JOBS` |
+| `docker-build`, `docker-build-ci`, `shell`, `tool-versions` | tool image; the smaller image of the GitHub workflows | `JOBS` |
 | `lint` | Verilator lint | `ISA` |
 | `sim`, `test` | build the core testbench; riscv-tests without Spike | `ISA`, `SUITES`, `TEST_ARGS` |
 | `cosim`, `cosim-stall` | riscv-tests vs. Spike, without/with random wait states | `ISA`, `SUITES`, `MEM_STALL` |
@@ -37,6 +37,7 @@ switch counts, at most 16).
 | `formal`, `formal-isas` | riscv-formal | `ISA`, `FORMAL_JOBS`, `FORMAL_TIMEOUT`, `FORMAL_CHECKS` |
 | `soc-sim`, `sw-tests`, `boot-test` | SoC simulation | `ISA`, `HEX`, `SOC_ARGS`, `IMEM_SIZE`, `DMEM_SIZE`, `BOOT_ADDR` |
 | `regress`, `regress-isas` | regression gates | `ISA`, `ISAS` |
+| `coverage`, `coverage-isas` | code coverage of the simulation checks | `ISA`, `ISAS`, `COV_STEPS`; `COVERAGE=1` for any simulation target |
 | `fpga-build`, `fpga-program`, `fpga-project`, `fpga-run` | Vivado flows | `BOARD`, `FPGA_PROG`, `BOOTLOADER`, `CLK_DIV`, `ISA`, `FPGA_BIT`, `ELF`, `PORT`, `LOG` |
 | `fpga-ip`, `fpga-bd`, `fpga-default` | IP, block-design demo, default images | `BD_PROG` |
 | `docs`, `docs-html`, `docs-figures` | the manuals | |

@@ -14,6 +14,7 @@ except Docker and, for the FPGA, Vivado.
 | `rtl/fpu/` | the floating-point unit: FMA, divide/square root, conversions, rounding, compare, min/max, sign injection, classify |
 | `rtl/soc/` | the SoC: instruction and data memories, data router, request-to-AXI bridge, AXI4-Lite interconnect, timer, UART, GPIO, system control |
 | `rtl/lint.vlt` | Verilator lint waivers (each one with its reason) |
+| `rtl/coverage.vlt` | code coverage exclusions (each one with its reason) |
 | `tb/` | testbenches: `hornet_tb.sv` (core), `soc_tb.sv` (SoC), `fpu_tb.sv` (FPU) |
 | `verif/` | riscv-tests, riscv-formal and RISCV-DV (Git submodules), the formal wrapper and check list (`formal/`), the RISCV-DV test list, core setting and custom tests (`dv/`) |
 | `scripts/` | Python and shell scripts: test runners, Spike comparison, random program generator, FPU vector generators, ELF-to-memory-image converter, UART loader, RISCV-DV driver, formal runner, figure export |
@@ -21,6 +22,7 @@ except Docker and, for the FPGA, Vivado.
 | `fpga/` | board top (`common/hornet_board.v`), Vivado scripts, board definitions and constraints (`nexys4ddr/`, `nexysvideo/`), default memory images, IP packaging and block-design demo (`ip/`) |
 | `docker/` | `Dockerfile` of the tool image and its Python requirements |
 | `.devcontainer/` | VS Code Dev Container definition (the same image) |
+| `.github/workflows/` | GitHub Actions: the CI image, the regression and the coverage (Codecov settings in `codecov.yml`) |
 | `docs/` | the manuals: Markdown chapters, draw.io figures (`figures/`), Sphinx configuration (`conf.py`) |
 | `build/` | everything generated (not in Git): simulators, test logs, program images, bitstreams, the PDF |
 
@@ -84,6 +86,8 @@ each other.
 | `build/<isa>/sw-tests/` | SoC test program summary (logs in `sw/tests/<name>/build/<isa>/`) |
 | `build/fpga/<board>/<isa>/<program>/` | Vivado batch build: bitstream, reports, log |
 | `build/ip/`, `build/fpga/bd/` | packaged IP, block-design demo |
+| `build/sim/*-cov/` | the same simulators with coverage (`COVERAGE=1`) |
+| `build/coverage/<isa>/`, `all/` | code coverage: merged data, `summary.txt`, lcov file, annotated sources |
 | `build/docs/` | the two PDF manuals and the HTML version |
 | `sw/**/build/` | per-program ELF, listing, map, memory images |
 
@@ -119,6 +123,13 @@ pinned so that every machine gets the same results:
 `make docker-build` builds it (`JOBS` sets the compile parallelism),
 `make tool-versions` prints the versions in use, and `make shell` opens an
 interactive shell in it.
+
+The Dockerfile has three stages. `tools` compiles Verilator, Spike and
+TestFloat; `ci` copies them with GCC (only the `rv32i`, `rv32im` and
+`rv32imf` libraries) and the Python packages, without riscv-formal and
+LaTeX (about 2 GB, `make docker-build-ci`, published as
+`ghcr.io/gstl-itu/hornet-ci` for the GitHub workflows); `dev`, the default,
+adds the OSS CAD Suite and LaTeX.
 
 ### VS Code Dev Container
 

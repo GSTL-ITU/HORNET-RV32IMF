@@ -25,11 +25,19 @@ image and is started from the top-level Makefile.
 | Bootloader | `make boot-test` | expected program output | the UART loading path | 1 min |
 | Application | `make -C sw/examples/IDS-MLP-uart-fpga check` | results measured on the FPGA | a full floating-point application | 2 min |
 | FPGA timing | `make fpga-build` | Vivado static timing | timing at the target clock | 5 min |
+| Code coverage | `make coverage` | — | RTL that no simulation check reaches | 8 min |
 
 `make regress` runs lint, the FPU vectors, the co-simulations, the random
 programs, the SoC tests, the bootloader test and formal for one ISA;
 `make regress-isas` runs the simulation checks for all three
 configurations; `make formal-isas` runs formal for all three.
+
+On GitHub, every push and pull request runs the simulation checks of
+`make regress-isas` and the FPU vectors (workflow *Regression*), and every
+push to `main` runs `make coverage-isas` and sends the result to Codecov
+(workflow *Coverage*). Both use `ghcr.io/gstl-itu/hornet-ci`, the `ci` stage
+of the tool image ([Repository: the tool image](repository.md#the-tool-image)).
+riscv-formal and the FPGA builds are run by hand.
 
 ## Results of this release
 
@@ -66,6 +74,42 @@ make formal-isas           # about one hour per configuration
 
 Logs and summaries are in `build/` ([Repository: build
 directories](repository.md#build-directories)).
+
+## Code coverage
+
+Coverage tells which parts of the RTL the checks above exercise; it does not
+tell whether the results were right (the comparisons with Spike, TestFloat
+and riscv-formal do that). `make coverage` builds the simulators with
+Verilator's line, branch and toggle coverage (`COVERAGE=1`, separate build
+directories) and runs the FPU vectors (with F), riscv-tests with and without
+wait states, the random programs, the SoC tests, the bootloader test and
+RISCV-DV for one ISA; `make coverage-isas` does it for all three and merges
+them. `COV_STEPS` selects the steps.
+
+| Point | Covered when |
+|---|---|
+| line | a block of statements ran |
+| branch | each outcome of an `if`, `case` or `?:` occurred |
+| toggle | a bit went 0 → 1 and 1 → 0 (every bit of every signal) |
+
+A point counts once per source line, whatever instance or testbench hit it.
+The testbenches are excluded (`rtl/coverage.vlt`, which lists every
+exclusion with its reason).
+
+| Configuration | Line | Branch | Toggle |
+|---|---|---|---|
+| RV32I | 87.9 % | 90.5 % | 73.7 % |
+| RV32IM | 88.4 % | 92.2 % | 75.8 % |
+| RV32IMF | 91.2 % | 95.5 % | 82.6 % |
+| all three merged | 91.2 % | 96.0 % | 82.7 % |
+
+The core and the FPU are covered almost completely. Toggle coverage is
+lower where bits cannot change in short programs (the upper bits of the
+64-bit counters and of `mtime`). The peripherals are the weakest part
+(GPIO, timer, system control: 44–56 % of lines), because only the SoC test
+programs reach them. `build/coverage/<isa>/` holds `summary.txt` (per file),
+`coverage.info` (lcov, line and branch, sent to Codecov) and `annotated/`
+(the sources with the count of every point).
 
 ## Reporting a bug
 

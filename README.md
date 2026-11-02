@@ -4,6 +4,8 @@
 ![Hardware](https://img.shields.io/badge/Target-Nexys%204%20DDR%20%7C%20Nexys%20Video-blue)
 ![ISA](https://img.shields.io/badge/ISA-RV32I%20%7C%20RV32IM%20%7C%20RV32IMF-orange)
 ![Toolchain](https://img.shields.io/badge/Vivado-2025.2-red)
+[![Regression](https://github.com/GSTL-ITU/HORNET-RV32IMF/actions/workflows/regress.yml/badge.svg)](https://github.com/GSTL-ITU/HORNET-RV32IMF/actions/workflows/regress.yml)
+[![codecov](https://codecov.io/gh/GSTL-ITU/HORNET-RV32IMF/branch/main/graph/badge.svg)](https://codecov.io/gh/GSTL-ITU/HORNET-RV32IMF)
 
 **HORNET-RV32IMF** is an academic 5-stage pipelined RISC-V processor and SoC
 for floating-point and Edge-AI work on Xilinx Artix-7 boards. It implements
