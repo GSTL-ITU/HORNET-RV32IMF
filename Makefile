@@ -46,10 +46,23 @@ SOC_SRCS  = rtl/soc/hornet_soc.v rtl/soc/imem.v rtl/soc/dmem.v rtl/soc/data_rout
 RTL_SRCS  = $(CORE_SRCS) $(FPU_SRCS)
 RTL_INC   = -Irtl/core -Irtl/fpu
 
-SIM        = $(BUILD)/sim/core-$(ISA)/Vhornet_tb
-SIM_FPU    = $(BUILD)/sim/fpu/Vfpu_tb
+SIM        = $(BUILD)/sim/core-$(ISA)$(COV_SUFFIX)/Vhornet_tb
+SIM_FPU    = $(BUILD)/sim/fpu$(COV_SUFFIX)/Vfpu_tb
 VERILATOR_FLAGS = --binary --timing -j $(JOBS) -Wno-fatal -Wno-lint -Wno-style +1364-2005ext+v \
                   --trace-fst --timescale 1ns/1ps $(RTL_INC)
+
+# COVERAGE=1: simulators with line, branch and toggle coverage, in their own
+# build directories; every run writes its data into COV_PARTS (make coverage)
+COVERAGE  ?= 0
+COV_DIR    = $(BUILD)/coverage
+COV_PARTS  = $(COV_DIR)/parts
+ifeq ($(COVERAGE),1)
+COV_SUFFIX = -cov
+COV_VLT    = rtl/coverage.vlt
+VERILATOR_FLAGS += --coverage-line --coverage-toggle $(COV_VLT)
+COV_ARGS   = --cov-dir $(COV_PARTS)
+COV_FILE   = +verilator+coverage+file+$(COV_PARTS)/$(1).dat
+endif
 
 RISCV_TESTS  = verif/riscv-tests/isa/rv32ui/Makefrag
 RISCV_DV     = verif/riscv-dv/pygen/pygen_src/riscv_instr_pkg.py
@@ -69,10 +82,12 @@ FORMAL_CHECKS  ?=
 
 .PHONY: help docker-build shell tool-versions lint sim test cosim cosim-stall random fpu-test formal soc-sim sw-tests boot-test regress clean \
         riscv-dv riscv-dv-loop \
-        regress-isas formal-isas docs docs-html docs-figures fpga-build fpga-default fpga-program fpga-run fpga-project fpga-ip fpga-bd
+        regress-isas formal-isas docs docs-html docs-figures fpga-build fpga-default fpga-program fpga-run fpga-project fpga-ip fpga-bd \
+        coverage coverage-isas coverage-report docker-build-ci
 
 help:
 	@echo "make docker-build   Build the $(IMAGE) image"
+	@echo "make docker-build-ci  The smaller hornet-ci:latest image of the GitHub workflows (no formal, no LaTeX)"
 	@echo "make shell          Interactive shell in the image"
 	@echo "ISA=$(ISA)          core configuration for every target below: $(ISAS)"
 	@echo "make lint           Verilator lint of the RTL (Verilog-2005)"
@@ -92,6 +107,9 @@ help:
 	@echo "make regress        lint, fpu-test, cosim, cosim-stall, random, sw-tests, boot-test and formal for ISA"
 	@echo "make regress-isas   lint, cosim, cosim-stall, random, sw-tests, boot-test for every ISA in ISAS"
 	@echo "make formal-isas    formal for every ISA in ISAS"
+	@echo "make coverage       Code coverage (line, branch, toggle) of the simulation checks for ISA, in $(COV_DIR)/$(ISA)"
+	@echo "                    COV_STEPS=\"cosim random ...\" (default: fpu-test with F, cosim ... riscv-dv)"
+	@echo "make coverage-isas  coverage for every ISA in ISAS, merged in $(COV_DIR)/all"
 	@echo "make fpga-build FPGA_PROG=sw/examples/gpio   Bitstream with that program in the BRAMs (Vivado, host)"
 	@echo "                    BOARD=$(BOARD) (any fpga/<board>/ with board.tcl: nexys4ddr, nexysvideo)"
 	@echo "                    BOOTLOADER=1 adds the UART bootloader (scripts/hornet_load.py loads programs)"
@@ -108,6 +126,10 @@ help:
 
 docker-build:
 	$(DOCKER) build --build-arg JOBS=$(JOBS) -t $(IMAGE) docker
+
+# the smaller image of the GitHub workflows: no formal tools, no LaTeX
+docker-build-ci:
+	$(DOCKER) build --build-arg JOBS=$(JOBS) --target ci -t hornet-ci:latest docker
 
 shell:
 	$(DOCKER) run --rm -it --memory=$(MEMLIM) -u $(shell id -u):$(shell id -g) -v $(CURDIR):/work -w /work $(IMAGE) bash
@@ -133,13 +155,13 @@ lint:
 
 sim: $(SIM)
 
-$(SIM): $(RTL_SRCS) tb/hornet_tb.sv
+$(SIM): $(RTL_SRCS) tb/hornet_tb.sv $(COV_VLT)
 	@mkdir -p $(@D)
 	$(DOCKER_RUN) verilator $(VERILATOR_FLAGS) --top-module hornet_tb --Mdir $(@D) -o $(@F) $(ISA_GEN) \
 	    $(RTL_SRCS) tb/hornet_tb.sv > $(@D).log
 	@echo "Built $@"
 
-$(SIM_FPU): $(FPU_SRCS) tb/fpu_tb.sv
+$(SIM_FPU): $(FPU_SRCS) tb/fpu_tb.sv $(COV_VLT)
 	@mkdir -p $(@D)
 	$(DOCKER_RUN) verilator $(VERILATOR_FLAGS) --top-module fpu_tb --Mdir $(@D) -o $(@F) \
 	    $(FPU_SRCS) tb/fpu_tb.sv > $(@D).log
@@ -155,16 +177,16 @@ $(BUILD)/fpu/directed.txt: scripts/fpu_directed.py
 	$(DOCKER_RUN) python3 scripts/fpu_directed.py --out $@
 
 fpu-test: $(SIM_FPU) $(BUILD)/fpu/vectors.txt $(BUILD)/fpu/directed.txt
-	$(DOCKER_RUN) sh -c '$(SIM_FPU) +vectors=$(BUILD)/fpu/vectors.txt | tee $(BUILD)/fpu/fpu_test.log | grep -v "^- "'
+	$(DOCKER_RUN) sh -c '$(SIM_FPU) +vectors=$(BUILD)/fpu/vectors.txt $(call COV_FILE,fpu-vectors) | tee $(BUILD)/fpu/fpu_test.log | grep -v "^- "'
 	@grep -q "^PASS" $(BUILD)/fpu/fpu_test.log
-	$(DOCKER_RUN) sh -c '$(SIM_FPU) +vectors=$(BUILD)/fpu/directed.txt | tee $(BUILD)/fpu/fpu_directed.log | grep -v "^- "'
+	$(DOCKER_RUN) sh -c '$(SIM_FPU) +vectors=$(BUILD)/fpu/directed.txt $(call COV_FILE,fpu-directed) | tee $(BUILD)/fpu/fpu_directed.log | grep -v "^- "'
 	@grep -q "^PASS" $(BUILD)/fpu/fpu_directed.log
 
 IMEM_SIZE ?= 0x10000
 DMEM_SIZE ?= 0x10000
 BOOT_ADDR ?= 0x0
-SIM_SOC    = $(BUILD)/sim/soc-$(ISA)-$(IMEM_SIZE)-$(DMEM_SIZE)-$(BOOT_ADDR)/Vsoc_tb
-$(SIM_SOC): $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv
+SIM_SOC    = $(BUILD)/sim/soc-$(ISA)-$(IMEM_SIZE)-$(DMEM_SIZE)-$(BOOT_ADDR)$(COV_SUFFIX)/Vsoc_tb
+$(SIM_SOC): $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv $(COV_VLT)
 	@mkdir -p $(@D)
 	$(DOCKER_RUN) verilator $(VERILATOR_FLAGS) --top-module soc_tb --Mdir $(@D) -o $(@F) $(ISA_GEN) \
 	    -GIMEM_SIZE=$$(($(IMEM_SIZE))) -GDMEM_SIZE=$$(($(DMEM_SIZE))) -GBOOT_ADDR=$$(($(BOOT_ADDR))) $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv > $(@D).log
@@ -172,10 +194,11 @@ $(SIM_SOC): $(RTL_SRCS) $(SOC_SRCS) tb/soc_tb.sv
 
 SOC_ARGS ?=
 soc-sim: $(SIM_SOC)
-	$(DOCKER_RUN) sh -c '$(SIM_SOC) +imem=$(HEX).imem.hex +dmem=$(HEX).dmem.hex +uart_log=$(HEX).uart.log $(SOC_ARGS) | grep -v "^- "'
+	$(DOCKER_RUN) sh -c '$(SIM_SOC) +imem=$(HEX).imem.hex +dmem=$(HEX).dmem.hex +uart_log=$(HEX).uart.log $(SOC_ARGS) \
+	    $(call COV_FILE,soc-sim-$(ISA)-$(notdir $(HEX))) | grep -v "^- "'
 
 sw-tests: $(SIM_SOC)
-	$(DOCKER_RUN) python3 scripts/run_sw_tests.py --sim $(SIM_SOC) --isa $(ISA) -j $(JOBS)
+	$(DOCKER_RUN) python3 scripts/run_sw_tests.py --sim $(SIM_SOC) --isa $(ISA) -j $(JOBS) $(COV_ARGS)
 
 # the bootloader alone in IMEM loads sw/tests/hello over the UART and runs it
 boot-test:
@@ -187,7 +210,7 @@ boot-test:
 	    SOC_ARGS="+uart_in=sw/bootloader/build/$(ISA)/hello.bin +timeout=3000000" | tee $(BUILD)/$(ISA)/boot-test.log
 	@grep -q "^PASS" $(BUILD)/$(ISA)/boot-test.log
 
-TEST_ISA = --isa $(ISA) $(if $(SUITES),--suites $(SUITES))
+TEST_ISA = --isa $(ISA) $(if $(SUITES),--suites $(SUITES)) $(COV_ARGS)
 test: $(SIM) $(RISCV_TESTS)
 	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) $(TEST_ISA) -j $(JOBS) --workdir $(BUILD)/$(ISA)/tests $(TEST_ARGS)
 
@@ -200,9 +223,9 @@ cosim-stall: $(SIM) $(RISCV_TESTS)
 
 random: $(SIM)
 	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --isa $(ISA) --spike -j $(JOBS) --random $(RANDOM) \
-	    --seed $(SEED) --workdir $(BUILD)/$(ISA)/random
+	    --seed $(SEED) --workdir $(BUILD)/$(ISA)/random $(COV_ARGS)
 	$(DOCKER_RUN) python3 scripts/run_tests.py --sim $(SIM) --isa $(ISA) --spike -j $(JOBS) --random $(RANDOM) \
-	    --seed $(SEED) --mem-stall $(MEM_STALL) --workdir $(BUILD)/$(ISA)/random-stall
+	    --seed $(SEED) --mem-stall $(MEM_STALL) --workdir $(BUILD)/$(ISA)/random-stall $(COV_ARGS)
 
 # RISCV-DV: verif/dv/testlist.yaml and verif/dv/directed/*.S (docs: verification)
 DV_TESTS ?=
@@ -210,7 +233,7 @@ DV_ITER  ?=
 DV_SEED  ?= 1
 DV_RUNS  ?= 0
 DV_ARGS  ?=
-DV_RUN    = $(DOCKER_RUN) python3 scripts/riscv_dv.py --sim $(SIM) --isa $(ISA) -j $(JOBS) --seed $(DV_SEED) \
+DV_RUN    = $(DOCKER_RUN) python3 scripts/riscv_dv.py --sim $(SIM) --isa $(ISA) -j $(JOBS) --seed $(DV_SEED) $(COV_ARGS) \
             $(if $(DV_TESTS),--tests $(subst $() ,$(comma),$(strip $(DV_TESTS)))) $(if $(DV_ITER),--iterations $(DV_ITER))
 comma    := ,
 riscv-dv: $(SIM) $(RISCV_DV)
@@ -233,6 +256,36 @@ regress-isas:
 
 formal-isas:
 	@for isa in $(ISAS); do $(MAKE) -s formal ISA=$$isa; done
+
+# ------------------------------------------------------------------ code coverage
+# make coverage: the simulation checks of ISA with COVERAGE=1 simulators. The data
+# of each step's runs are merged as soon as the step ends (one run writes a few MB).
+# $(COV_DIR)/<ISA>/: coverage.dat (merged), coverage.info (lcov: line and branch),
+# summary.txt (line, branch, toggle per file), annotated/ (sources with counts per point)
+COV_STEPS ?= $(if $(filter 1,$(RV_F)),fpu-test) cosim cosim-stall random sw-tests boot-test riscv-dv
+coverage:
+	rm -rf $(COV_DIR)/$(ISA) $(COV_PARTS)
+	@mkdir -p $(COV_DIR)/$(ISA)/steps
+	@set -e; for step in $(COV_STEPS); do \
+	    echo "=== coverage $(ISA): $$step"; \
+	    mkdir -p $(COV_PARTS); \
+	    $(MAKE) -s $$step COVERAGE=1; \
+	    $(DOCKER_RUN) verilator_coverage --write $(COV_DIR)/$(ISA)/steps/$$step.dat $(COV_PARTS)/*.dat; \
+	    rm -rf $(COV_PARTS); \
+	done
+	$(MAKE) -s coverage-report COV_NAME=$(ISA) COV_IN="$(COV_DIR)/$(ISA)/steps/*.dat"
+
+# every configuration, then all of them merged in $(COV_DIR)/all
+coverage-isas:
+	@set -e; for isa in $(ISAS); do $(MAKE) -s coverage ISA=$$isa; done
+	$(MAKE) -s coverage-report COV_NAME=all COV_IN="$(foreach i,$(ISAS),$(COV_DIR)/$(i)/coverage.dat)"
+
+COV_OUT = $(COV_DIR)/$(COV_NAME)
+coverage-report:
+	@mkdir -p $(COV_OUT) && rm -rf $(COV_OUT)/annotated
+	$(DOCKER_RUN) sh -c 'verilator_coverage --write $(COV_OUT)/coverage.dat $(COV_IN) && \
+	    verilator_coverage --annotate $(COV_OUT)/annotated --annotate-points $(COV_OUT)/coverage.dat > /dev/null && \
+	    python3 scripts/coverage_report.py $(COV_OUT)/coverage.dat $(COV_OUT)/summary.txt $(COV_OUT)/coverage.info'
 
 # ------------------------------------------------------------------ FPGA (Vivado on the host)
 VIVADO    ?= $(shell command -v vivado 2>/dev/null || echo /opt/Xilinx/2025.2/Vivado/bin/vivado)

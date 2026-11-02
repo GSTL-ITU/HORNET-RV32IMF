@@ -1,0 +1,37 @@
+# The tool image of the other workflows: docker/Dockerfile, stage "ci" (the
+# simulation tools without riscv-formal and LaTeX), published as
+# ghcr.io/gstl-itu/hornet-ci:latest. Rebuilt when docker/ changes, or by hand
+# (Actions -> CI image -> Run workflow). Image names must be lowercase.
+name: CI image
+
+on:
+  push:
+    branches: [main]
+    paths: ["docker/**", ".github/workflows/ci-image.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # the runner has about 14 GB free; the compilers of the build stage need some of it
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: docker
+          target: ci
+          build-args: JOBS=4
+          push: true
+          tags: ghcr.io/gstl-itu/hornet-ci:latest

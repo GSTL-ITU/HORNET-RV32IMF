@@ -3,6 +3,7 @@
 
   run_tests.py --sim build/sim/core-rv32imf/Vhornet_tb --isa rv32imf --spike
   run_tests.py --sim ... --isa rv32im --random 200 --seed 1 --spike --mem-stall 30
+  run_tests.py --sim build/sim/core-rv32imf-cov/Vhornet_tb ... --cov-dir build/coverage/parts
 
 --isa is the core configuration (rv32i, rv32im, rv32imf). It selects
 the riscv-tests suites (ui and mi always, um with M, uf with F), the compiler
@@ -55,6 +56,11 @@ CC = "riscv32-unknown-elf-gcc"
 
 def run(cmd, **kw):
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, **kw)
+
+
+def cov_file(cov_dir, base):
+    """Coverage data of one run (simulator built with COVERAGE=1), named after its path."""
+    return os.path.join(cov_dir, os.path.relpath(base, ROOT).replace(os.sep, "-") + ".dat")
 
 
 def build_test(src, out_dir, name, isa):
@@ -170,6 +176,8 @@ def run_one(args, suite, name, elf):
         return name, "ERROR", str(e)
     cmd = [args.sim, "+hex=" + base + ".hex", "+trace=" + base + ".rtl.log", "+tohost=%x" % tohost,
            "+mem_stall=%d" % args.mem_stall, "+seed=%d" % args.seed, "+timeout=%d" % args.timeout]
+    if args.cov_dir:
+        cmd.append("+verilator+coverage+file+" + cov_file(args.cov_dir, base))
     r = run(cmd, timeout=600)
     with open(base + ".sim.log", "w") as f:
         f.write(" ".join(cmd) + "\n" + r.stdout)
@@ -225,12 +233,15 @@ def main():
     ap.add_argument("--random-kind", default="all")
     ap.add_argument("--programs", default="", help="directory with prebuilt *.elf files")
     ap.add_argument("--workdir", default="build/tests")
+    ap.add_argument("--cov-dir", default="", help="write each run's coverage data here (COVERAGE=1 simulator)")
     ap.add_argument("-j", "--jobs", type=int, default=4)
     args = ap.parse_args()
 
     if not args.suites:
         args.suites = default_suites(args.isa)
     os.makedirs(args.workdir, exist_ok=True)
+    if args.cov_dir:
+        os.makedirs(args.cov_dir, exist_ok=True)
     work = []
     skipped = []
     if args.random:

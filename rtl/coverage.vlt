@@ -1,0 +1,6 @@
+`verilator_config
+// Code coverage (make coverage): what is not measured, each with its reason.
+// Exclusions hide code from the report, so only code that cannot be reached
+// by a correct test belongs here.
+// the testbenches are not part of the design
+coverage_off -file "tb/*"

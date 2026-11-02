@@ -173,6 +173,8 @@ def run_job(a, job):
     rtl_log = os.path.join(d, "hornet.log")
     cmd = [a.sim, "+hex=" + base + ".hex", "+trace=" + rtl_log, "+tohost=%x" % tohost,
            "+mem_stall=%d" % a.mem_stall, "+seed=%d" % job.seed, "+timeout=%d" % a.timeout]
+    if a.cov_dir:
+        cmd.append("+verilator+coverage+file+" + os.path.join(a.cov_dir, "riscv-dv-%s-%s.dat" % (a.isa, job.name)))
     rc, out, t = run(cmd, timeout=a.timeout_s)
     res["rtl_s"] = t
     with open(os.path.join(d, "sim.log"), "w") as f:
@@ -291,10 +293,13 @@ def main():
     ap.add_argument("--keep", action="store_true", help="keep the logs of passing tests")
     ap.add_argument("--from-run", default="", help="run the programs of an earlier run's directory again")
     ap.add_argument("--out", default="")
+    ap.add_argument("--cov-dir", default="", help="write each run's coverage data here (COVERAGE=1 simulator)")
     ap.add_argument("-j", "--jobs", type=int, default=4)
     a = ap.parse_args()
     a.out = a.out or os.path.join(ROOT, "build", a.isa, "riscv-dv")
     os.makedirs(a.out, exist_ok=True)
+    if a.cov_dir:
+        os.makedirs(a.cov_dir, exist_ok=True)
 
     tests = load_tests(a.testlist, a.isa, set(filter(None, a.tests.split(","))))
     directed = []

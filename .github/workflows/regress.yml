@@ -1,0 +1,48 @@
+# The simulation checks of make regress-isas (lint, riscv-tests and random
+# programs vs. Spike with and without wait states, SoC tests, bootloader) for
+# every ISA configuration, and the FPU vectors. riscv-formal is not run here.
+name: Regression
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  isa:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gstl-itu/hornet-ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        isa: [rv32i, rv32im, rv32imf]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: make -s lint cosim cosim-stall random sw-tests boot-test ISA=${{ matrix.isa }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: summaries-${{ matrix.isa }}
+          path: build/${{ matrix.isa }}/**/summary.txt
+
+  fpu:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gstl-itu/hornet-ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: make -s fpu-test

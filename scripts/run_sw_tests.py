@@ -27,7 +27,7 @@ def requires(name):
     return m.group(1).split() if m else []
 
 
-def run_one(sim, isa, name):
+def run_one(sim, isa, name, cov_dir):
     d = os.path.join(TESTS, name)
     missing = [e for e in requires(name) if e not in isa[len("rv32i"):]]
     if missing:
@@ -41,6 +41,8 @@ def run_one(sim, isa, name):
     cmd = [sim, "+imem=" + base + ".imem.hex", "+dmem=" + base + ".dmem.hex", "+uart_log=" + base + ".uart.log"]
     if os.path.exists(os.path.join(d, "uart_in.txt")):
         cmd.append("+uart_in=" + os.path.join(d, "uart_in.txt"))
+    if cov_dir:
+        cmd.append("+verilator+coverage+file+" + os.path.join(cov_dir, "sw-tests-%s-%s.dat" % (isa, name)))
     r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=1800)
     with open(base + ".sim.log", "w") as f:
         f.write(" ".join(cmd) + "\n" + r.stdout)
@@ -55,12 +57,15 @@ def main():
     ap.add_argument("-j", "--jobs", type=int, default=4)
     ap.add_argument("--tests", default="")
     ap.add_argument("--isa", default="rv32imf", choices=["rv32i", "rv32im", "rv32imf"])
+    ap.add_argument("--cov-dir", default="", help="write each run's coverage data here (COVERAGE=1 simulator)")
     a = ap.parse_args()
+    if a.cov_dir:
+        os.makedirs(a.cov_dir, exist_ok=True)
     names = sorted(n for n in os.listdir(TESTS) if os.path.exists(os.path.join(TESTS, n, "Makefile")))
     if a.tests:
         names = [n for n in names if n in a.tests.split(",")]
     with ThreadPoolExecutor(max_workers=a.jobs) as pool:
-        results = list(pool.map(lambda n: run_one(a.sim, a.isa, n), names))
+        results = list(pool.map(lambda n: run_one(a.sim, a.isa, n, a.cov_dir), names))
     out = os.path.join(ROOT, "build", a.isa, "sw-tests")
     os.makedirs(out, exist_ok=True)
     lines = []

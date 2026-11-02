@@ -1,0 +1,11 @@
+# Codecov: line and branch coverage of rtl/ (make coverage-isas, .github/workflows/coverage.yml).
+# Informational only: a change of the coverage never fails a commit or a pull request.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+comment: false

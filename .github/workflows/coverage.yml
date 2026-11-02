@@ -1,0 +1,57 @@
+# Code coverage of the simulation checks (make coverage-isas: FPU vectors,
+# riscv-tests, random programs, SoC tests, bootloader, RISCV-DV for every ISA
+# configuration). The report is kept as an artifact and the line and branch
+# coverage (lcov) goes to Codecov, which needs the secret CODECOV_TOKEN.
+name: Coverage
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gstl-itu/hornet-ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: make -s coverage-isas
+      - name: Summary
+        run: |
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat build/coverage/all/summary.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            build/coverage/all/summary.txt
+            build/coverage/all/coverage.info
+            build/coverage/all/annotated
+            build/coverage/rv32*/summary.txt
+
+  # the Codecov uploader needs tools that are not in the image
+  codecov:
+    needs: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: build/coverage
+      - uses: codecov/codecov-action@v5
+        with:
+          files: build/coverage/all/coverage.info
+          disable_search: true
+          token: ${{ secrets.CODECOV_TOKEN }}

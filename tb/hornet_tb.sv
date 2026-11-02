@@ -155,7 +155,11 @@ begin
                     if(data_be[b])
                         mem[index(data_addr)][8*b +: 8] <= data_wdata[8*b +: 8];
                 if(data_addr == tohost && data_wdata != 32'b0)
-                    finish_test(data_wdata);
+                begin
+                    finish_code = data_wdata;
+                    finish_cycles = cycles;
+                    finish_retired = retired;
+                end
             end
         end
         else
@@ -185,11 +189,20 @@ longint last_retire = 0;
 reg [31:0] expect_pc;
 bit        have_pc = 1'b0;
 
+//the test ends on the falling edge after the tohost store, so that the instruction
+//retiring in the same rising edge is traced whatever order the always blocks run in
+reg [31:0] finish_code = 32'b0;
+longint    finish_cycles, finish_retired;
+
+always @(negedge clk)
+    if(finish_code != 32'b0)
+        finish_test(finish_code);
+
 task automatic finish_test(input [31:0] code);
     if(code == 32'd1)
-        $display("PASS cycles=%0d instret=%0d", cycles, retired);
+        $display("PASS cycles=%0d instret=%0d", finish_cycles, finish_retired);
     else
-        $display("FAIL test=%0d cycles=%0d instret=%0d", code >> 1, cycles, retired);
+        $display("FAIL test=%0d cycles=%0d instret=%0d", code >> 1, finish_cycles, finish_retired);
     if(trace_fd != 0)
         $fclose(trace_fd);
     $finish;

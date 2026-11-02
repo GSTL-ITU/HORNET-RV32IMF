@@ -116,6 +116,8 @@ Block diagrams, pipeline and memory map: [SoC](docs/soc.md), [core and pipeline]
 
 ## 🚀 Quick Start
 
+📖 **Step-by-step guide:** [docs/quick-start.md](docs/quick-start.md)
+
 ### Option A: Vivado GUI only (no Docker, no Make)
 
 1. Open Vivado 2025.2 → **Tools → Run Tcl Script** → `fpga/nexys4ddr/create_project.tcl`
