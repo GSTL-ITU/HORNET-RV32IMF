@@ -1,7 +1,8 @@
 # Code coverage of the simulation checks (make coverage-isas: FPU vectors,
 # riscv-tests, random programs, SoC tests, bootloader, RISCV-DV for every ISA
 # configuration). The report is kept as an artifact and the line and branch
-# coverage (lcov) goes to Codecov, which needs the secret CODECOV_TOKEN.
+# coverage (lcov) goes to Codecov. The upload authenticates with GitHub's OIDC
+# token, so no CODECOV_TOKEN secret is needed.
 name: Coverage
 
 on:
@@ -44,6 +45,9 @@ jobs:
   codecov:
     needs: coverage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -54,7 +58,7 @@ jobs:
         with:
           files: build/coverage/all/coverage.info
           disable_search: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-          # a rejected upload (missing or wrong token) fails the job instead of passing silently
+          use_oidc: true
+          # a rejected upload fails the job instead of passing silently
           fail_ci_if_error: true
           verbose: true
