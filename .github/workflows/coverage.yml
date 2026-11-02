@@ -55,3 +55,6 @@ jobs:
           files: build/coverage/all/coverage.info
           disable_search: true
           token: ${{ secrets.CODECOV_TOKEN }}
+          # a rejected upload (missing or wrong token) fails the job instead of passing silently
+          fail_ci_if_error: true
+          verbose: true
